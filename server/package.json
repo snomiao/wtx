@@ -1,0 +1,51 @@
+{
+  "name": "wtx",
+  "version": "0.0.1",
+  "description": "Bun PTY WebSocket server with replay buffer + tmux-free session management",
+  "keywords": [
+    "bun",
+    "pty",
+    "terminal",
+    "websocket",
+    "xterm"
+  ],
+  "homepage": "https://github.com/snomiao/wtx#readme",
+  "bugs": "https://github.com/snomiao/wtx/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snomiao/wtx.git",
+    "directory": "server"
+  },
+  "bin": {
+    "wtx": "./src/cli.ts"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "src"
+  ],
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@xterm/headless": "^6.0.0",
+    "bun-pty": "^0.4.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

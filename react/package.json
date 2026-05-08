@@ -1,0 +1,53 @@
+{
+  "name": "wtx-react",
+  "version": "0.0.1",
+  "description": "React xterm.js terminal with WS auto-reconnect, heartbeat, and graceful session-ended handling — pairs with wtx",
+  "keywords": [
+    "pty",
+    "react",
+    "terminal",
+    "websocket",
+    "xterm"
+  ],
+  "homepage": "https://github.com/snomiao/wtx#readme",
+  "bugs": "https://github.com/snomiao/wtx/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/snomiao/wtx.git",
+    "directory": "react"
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "src"
+  ],
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@xterm/addon-clipboard": "^0.2.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^5.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18 <20"
+  }
+}
