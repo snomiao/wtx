@@ -1,24 +1,43 @@
 # wtx
 
-Web terminal for Bun + React. Two packages:
+Bun PTY WebSocket server with replay buffer + `wtx` CLI.
 
-| Package               | npm         | Purpose                                                  |
-| --------------------- | ----------- | -------------------------------------------------------- |
-| [`server/`](./server) | `wtx`       | Bun PTY WebSocket server with replay buffer + `wtx` CLI  |
-| [`react/`](./react)   | `wtx-react` | xterm.js React component with auto-reconnect & heartbeat |
+## Install
 
-## Why
+```sh
+bun add wtx
+```
 
-- Bun PTY backend (no tmux dependency)
-- Replay buffer so reconnects pick up where they left off
-- Backpressure-aware broadcast (skips slow clients instead of blocking the event loop)
-- Graceful "session ended" handling — close code 1000 with full log replay for finished sessions, no reconnect-loop on the client
-- Heartbeat ping/pong to detect dead connections
+## Library usage
+
+```ts
+import { startTerminalWS, createSession } from "wtx";
+
+startTerminalWS(); // listens on TERMINAL_WS_PORT (default 3004)
+```
+
+## CLI usage
+
+```sh
+bunx wtx   # or: bun ./node_modules/wtx/src/cli.ts
+```
+
+## Env
+
+| var                | default         | purpose                                                               |
+| ------------------ | --------------- | --------------------------------------------------------------------- |
+| `TERMINAL_WS_PORT` | `3004`          | WS server port                                                        |
+| `WTX_DEFAULT_CWD`  | `process.cwd()` | fallback cwd for new sessions                                         |
+| `WTX_REPO_BASE`    | _(unset)_       | enables `/status/:owner/:repo` resolved under `<base>/<owner>/<repo>` |
+
+## API
+
+- `startTerminalWS()` — start the WS server
+- `createSession(cwd, sessionKey?)` — create or attach to a tmux-free PTY session
+- `hasSession(sessionKey)` — check if a session exists
+- `getTerminalStatusForRepo(repoFolder)` — busy/idle status
+- `getTermSummaryForCwd(cwd)` — terminal log summary
 
 ## Repo
 
 <https://github.com/snomiao/wtx>
-
-## Status
-
-Early — extracted from `sno-codehost` and decoupled from host integrations. API may shift before 1.0.
