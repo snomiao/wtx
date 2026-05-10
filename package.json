@@ -14,13 +14,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/snomiao/wtx.git",
-    "directory": "server"
+    "url": "git+https://github.com/snomiao/wtx.git"
   },
   "bin": {
     "wtx": "./src/cli.ts"
   },
   "files": [
+    "CHANGELOG.md",
     "LICENSE",
     "README.md",
     "src"

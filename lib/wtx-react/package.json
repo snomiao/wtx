@@ -15,9 +15,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/snomiao/wtx.git",
-    "directory": "react"
+    "directory": "lib/wtx-react"
   },
   "files": [
+    "CHANGELOG.md",
     "LICENSE",
     "README.md",
     "src"
