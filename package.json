@@ -1,5 +1,5 @@
 {
-  "name": "wtx",
+  "name": "@snomiao/wtx",
   "version": "0.0.1",
   "description": "Bun PTY WebSocket server with replay buffer + tmux-free session management",
   "keywords": [
@@ -17,12 +17,13 @@
     "url": "git+https://github.com/snomiao/wtx.git"
   },
   "bin": {
-    "wtx": "./src/cli.ts"
+    "wtx": "./bin/wtx"
   },
   "files": [
     "CHANGELOG.md",
     "LICENSE",
     "README.md",
+    "bin",
     "src"
   ],
   "type": "module",

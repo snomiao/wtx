@@ -1,7 +1,7 @@
 {
-  "name": "wtx-react",
+  "name": "@snomiao/wtx-react",
   "version": "0.0.1",
-  "description": "React xterm.js terminal with WS auto-reconnect, heartbeat, and graceful session-ended handling — pairs with wtx",
+  "description": "React xterm.js terminal with WS auto-reconnect, heartbeat, and graceful session-ended handling — pairs with @snomiao/wtx",
   "keywords": [
     "pty",
     "react",
