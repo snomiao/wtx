@@ -17,13 +17,13 @@
     "url": "git+https://github.com/snomiao/wtx.git"
   },
   "bin": {
-    "wtx": "./bin/wtx"
+    "wtx": "wtx.mjs"
   },
   "files": [
     "CHANGELOG.md",
     "LICENSE",
     "README.md",
-    "bin",
+    "wtx.mjs",
     "src"
   ],
   "type": "module",
