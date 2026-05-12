@@ -41,12 +41,17 @@
 
 ### HTTP エンドポイント（`@snomiao/wtx`）
 - `GET /sessions` — 全セッション一覧
+- `POST /sessions/:key` — 名前付きセッション作成
+- `DELETE /sessions/:key` — セッション kill + 削除
 - `GET /sessions/:key/buffer` — replay buffer 取得
 - `GET /sessions/:key/git` — Git status
 - `POST /sessions/:key/input` — PTY に入力送信
 - `GET /summary?cwd=` — cwd 対応セッションのサマリ
 - `GET /status/:owner/:repo` — repo 状態 (要 `WTX_REPO_BASE`)
 - `WS /?cwd=...&cols=...&rows=...` — ターミナル接続
+
+### 認証について
+`TERMINAL_ACCESS_KEY` 環境変数が未設定の場合、**全エンドポイントが認証なしで開放** される（mutation 含む）。これは意図的な設計で、リバースプロキシ等の外部 auth gateway に認証を委譲する想定。本番デプロイ時はキー設定 or gateway での認証必須。
 
 ### React コンポーネント（`@snomiao/wtx-react`）
 - `<WTx wsUrl cwd? session? onCwdChange? initialCmd? onActivity? darkTheme? lightTheme? className? />`

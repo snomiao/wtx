@@ -591,6 +591,45 @@ export function startTerminalWS() {
         return new Response("ok", { status: 200 });
       }
 
+      // Create or delete a named session: POST /sessions/:key | DELETE /sessions/:key
+      // POST body: { cmd?: string[], cwd?: string, cols?: number, rows?: number }
+      // Replaces any existing session with the same key.
+      const sessionMatch = url.pathname.match(/^\/sessions\/([^/]+)$/);
+      if (sessionMatch) {
+        const key = decodeURIComponent(sessionMatch[1]);
+        if (req.method === "POST") {
+          let body: { cmd?: string[]; cwd?: string; cols?: number; rows?: number } = {};
+          try {
+            body = (await req.json()) as typeof body;
+          } catch {
+            // empty/non-JSON body is OK — fall back to defaults
+          }
+          const cmd =
+            Array.isArray(body.cmd) && body.cmd.length > 0
+              ? body.cmd
+              : [process.env.SHELL || "bash"];
+          const cols = Math.max(MIN_COLS, body.cols ?? 80);
+          const rows = Math.max(MIN_ROWS, body.rows ?? 24);
+          let cwd: string;
+          try {
+            cwd = validateCwd(body.cwd ?? process.env.WTX_DEFAULT_CWD ?? process.cwd());
+          } catch (err) {
+            return new Response(err instanceof Error ? err.message : String(err), {
+              status: 400,
+            });
+          }
+          createSession(key, cmd, cols, rows, cwd);
+          return Response.json({ key, cmd, cwd, cols, rows }, { status: 201 });
+        }
+        if (req.method === "DELETE") {
+          const session = sessions.get(key);
+          if (!session) return new Response("session not found", { status: 404 });
+          session.pty.kill();
+          sessions.delete(key);
+          return new Response("ok", { status: 200 });
+        }
+      }
+
       const upgraded = server.upgrade(req, { data: { url: req.url } });
       if (!upgraded) {
         return new Response("WebSocket upgrade expected", { status: 426 });

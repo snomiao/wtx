@@ -156,6 +156,45 @@ curl -X POST "http://localhost:3004/sessions/agent-1/input?cr=1" \
   --data-binary "ls -la"
 ```
 
+### `POST /sessions/:key`
+
+名前付きセッションを作成する（同名があれば置換）。
+
+Body (JSON, 全て省略可):
+
+| フィールド | 型 | デフォルト |
+|---|---|---|
+| `cmd` | `string[]` | `[process.env.SHELL || "bash"]` |
+| `cwd` | `string` | `WTX_DEFAULT_CWD` or `process.cwd()` |
+| `cols` | `number` | `80` (最小 10) |
+| `rows` | `number` | `24` (最小 2) |
+
+```sh
+curl -X POST http://localhost:3004/sessions/agent-1 \
+  -H "Content-Type: application/json" \
+  -d '{"cmd":["bash","-l"],"cwd":"/workspace","cols":120,"rows":40}'
+```
+
+成功時: `201 Created`、body は作成した session の JSON。
+
+```json
+{ "key": "agent-1", "cmd": ["bash","-l"], "cwd": "/workspace", "cols": 120, "rows": 40 }
+```
+
+作成後、WS から `?session=agent-1` で attach できる。
+
+### `DELETE /sessions/:key`
+
+セッションを kill して削除する。
+
+```sh
+curl -X DELETE http://localhost:3004/sessions/agent-1
+```
+
+成功時: `200 OK` body `"ok"`。存在しない場合: `404 session not found`。
+
+attach 中のクライアントには `[session ended]` 通知が送られる。
+
 ### `GET /summary?cwd=<path>`
 
 `getTermSummaryForCwd(cwd)` の HTTP 版。
