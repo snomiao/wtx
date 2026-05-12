@@ -1,3 +1,10 @@
+## [0.0.5](https://github.com/snomiao/wtx/compare/v0.0.4...v0.0.5) (2026-05-12)
+
+
+### Bug Fixes
+
+* trigger first successful OIDC trusted publish ([d19371e](https://github.com/snomiao/wtx/commit/d19371e09ac5ef18738cad8f66c018e44a39119f))
+
 ## [0.0.4](https://github.com/snomiao/wtx/compare/v0.0.3...v0.0.4) (2026-05-12)
 
 
