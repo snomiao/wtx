@@ -1,3 +1,10 @@
+## [0.0.3](https://github.com/snomiao/wtx/compare/v0.0.2...v0.0.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* **release:** drop setup-node registry-url to enable OIDC fallback ([f90511a](https://github.com/snomiao/wtx/commit/f90511a2f5d5153c843c5bfb73a519adc712a452))
+
 ## [0.0.2](https://github.com/snomiao/wtx/compare/v0.0.1...v0.0.2) (2026-05-12)
 
 
