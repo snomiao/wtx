@@ -16,12 +16,12 @@
     ],
     [
       "@semantic-release/npm",
-      { "pkgRoot": "." }
+      { "npmPublish": false }
     ],
     [
       "@semantic-release/exec",
       {
-        "publishCmd": "cd lib/wtx-react && npm publish --provenance --access=public"
+        "publishCmd": "npm publish --provenance --access=public && cd lib/wtx-react && npm publish --provenance --access=public"
       }
     ],
     [
