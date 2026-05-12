@@ -1,10 +1,3 @@
-## [0.0.2](https://github.com/snomiao/wtx/compare/v0.0.1...v0.0.2) (2026-05-12)
-
-
-### Bug Fixes
-
-* **release:** use exec for publish (npm token check bypass for OIDC) ([4cb0f60](https://github.com/snomiao/wtx/commit/4cb0f604b67bcce03ae11e5657781b4b7a477fc1))
-
 # Changelog
 
 ## 0.0.1 (unreleased)
