@@ -17,6 +17,9 @@
     "url": "git+https://github.com/snomiao/wtx.git",
     "directory": "lib/wtx-react"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "CHANGELOG.md",
     "LICENSE",

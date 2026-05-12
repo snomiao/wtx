@@ -1,0 +1,40 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      { "changelogFile": "CHANGELOG.md" }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "node -e \"const fs=require('fs'),p='lib/wtx-react/package.json',j=JSON.parse(fs.readFileSync(p));j.version='${nextRelease.version}';fs.writeFileSync(p,JSON.stringify(j,null,2)+'\\n')\""
+      }
+    ],
+    [
+      "@semantic-release/npm",
+      { "pkgRoot": "." }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "publishCmd": "cd lib/wtx-react && npm publish --provenance --access=public"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "package.json",
+          "lib/wtx-react/package.json"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

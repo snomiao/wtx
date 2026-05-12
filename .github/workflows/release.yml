@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Type-check (wtx)
+        run: bunx tsc --noEmit
+
+      - name: Type-check (wtx-react)
+        run: bunx tsc --noEmit
+        working-directory: lib/wtx-react
+
+      - name: Pack (wtx, dry-run)
+        run: bun pm pack --dry-run
+
+      - name: Pack (wtx-react, dry-run)
+        run: bun pm pack --dry-run
+        working-directory: lib/wtx-react
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
+        run: bunx semantic-release
