@@ -1,3 +1,11 @@
+## [0.0.4](https://github.com/snomiao/wtx/compare/v0.0.3...v0.0.4) (2026-05-12)
+
+
+### Bug Fixes
+
+* **release:** upgrade npm to latest for OIDC support ([e55bb5e](https://github.com/snomiao/wtx/commit/e55bb5e7b306f734e4e38adbd3776fd2aef73064))
+* **release:** use Node 24 (npm 11.x bundled) for OIDC support ([2a5b971](https://github.com/snomiao/wtx/commit/2a5b9712723df39e407e4840fe2de0ac8252cd62))
+
 ## [0.0.3](https://github.com/snomiao/wtx/compare/v0.0.2...v0.0.3) (2026-05-12)
 
 

@@ -1,6 +1,6 @@
 {
   "name": "@snomiao/wtx",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Bun PTY WebSocket server with replay buffer + tmux-free session management",
   "keywords": [
     "bun",
