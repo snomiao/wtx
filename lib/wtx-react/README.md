@@ -40,6 +40,48 @@ export function App() {
 - Fit-to-container with `ResizeObserver`
 - Status badge (`connecting…` / `reconnecting…` / `session ended`)
 
+## `useWTx` — headless hook
+
+For one-way log viewers (HTTP streams, `EventSource`, custom transports), use
+the headless hook — it gives you a configured xterm `Terminal` + container ref,
+with the same default addon bundle as `<WTx>` (Fit, Unicode11, WebLinks, Search,
+Clipboard).
+
+```tsx
+import { useEffect } from "react";
+import { useWTx } from "@snomiao/wtx-react";
+
+export function LogViewer({ url }: { url: string }) {
+  const { instance, ref } = useWTx({ options: { fontSize: 13, scrollback: 10000 } });
+
+  useEffect(() => {
+    if (!instance) return;
+    const ac = new AbortController();
+    (async () => {
+      const res = await fetch(url, { signal: ac.signal });
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        instance.write(decoder.decode(value, { stream: true }));
+      }
+    })();
+    return () => ac.abort();
+  }, [instance, url]);
+
+  return <div ref={ref} className="w-full h-full" />;
+}
+```
+
+| option              | type                | description                                             |
+| ------------------- | ------------------- | ------------------------------------------------------- |
+| `options`           | `ITerminalOptions?` | forwarded to `new Terminal(opts)` (captured on mount)   |
+| `skipDefaultAddons` | `boolean?`          | don't auto-load Fit/Unicode11/WebLinks/Search/Clipboard |
+
+Returns `{ instance, ref, fitAddon }`. `instance` is `null` until the ref is
+attached and the terminal opened.
+
 ## Repo
 
 <https://github.com/snomiao/wtx>
