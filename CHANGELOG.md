@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/snomiao/wtx/compare/v0.1.0...v0.2.0) (2026-05-12)
+
+
+### Features
+
+* **wtx-react:** add useWTx headless hook for log viewers ([9ec493d](https://github.com/snomiao/wtx/commit/9ec493d4b1d5c4a4b63014953f75687fbf7b20a1))
+
 # [0.1.0](https://github.com/snomiao/wtx/compare/v0.0.5...v0.1.0) (2026-05-12)
 
 
