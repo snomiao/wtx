@@ -1,3 +1,10 @@
+# [0.1.0](https://github.com/snomiao/wtx/compare/v0.0.5...v0.1.0) (2026-05-12)
+
+
+### Features
+
+* **server:** add POST/DELETE /sessions/:key for external session control ([2bc6af7](https://github.com/snomiao/wtx/commit/2bc6af7fd9a2628df88597058b95981b7f6b9a5c))
+
 ## [0.0.5](https://github.com/snomiao/wtx/compare/v0.0.4...v0.0.5) (2026-05-12)
 
 
