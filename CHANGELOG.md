@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/snomiao/wtx/compare/v0.2.0...v0.3.0) (2026-05-15)
+
+
+### Features
+
+* **wtx-react:** re-export Terminal/ITerminalAddon/IDisposable types from @xterm/xterm ([4c81a81](https://github.com/snomiao/wtx/commit/4c81a81970d1b90e62b73f89ddf9bcd6cb61300e))
+
 # [0.2.0](https://github.com/snomiao/wtx/compare/v0.1.0...v0.2.0) (2026-05-12)
 
 
