@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/snomiao/wtx/compare/v0.3.0...v0.3.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* **server:** override HOST/HOSTNAME in pty env so prompt shows real hostname ([bcefb67](https://github.com/snomiao/wtx/commit/bcefb67a00f0bc2da955611997185604836da430))
+
 # [0.3.0](https://github.com/snomiao/wtx/compare/v0.2.0...v0.3.0) (2026-05-15)
 
 
