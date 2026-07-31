@@ -11,7 +11,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir, hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ServerWebSocket } from "bun";
 
@@ -266,6 +266,10 @@ function spawnPty(
       COLORTERM: "truecolor",
       LANG: "C.UTF-8",
       LC_ALL: "C.UTF-8",
+      // Override any inherited HOST/HOSTNAME (e.g. portless sets HOST=127.0.0.1
+      // for the proxied dev processes) so zsh's %m prompt shows the real host.
+      HOST: hostname(),
+      HOSTNAME: hostname(),
       // OSC 7 CWD reporting
       ZDOTDIR: KOHO_ZDOTDIR,
       // bash fallback
