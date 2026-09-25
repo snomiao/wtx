@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/snomiao/wtx/compare/v0.3.1...v0.3.2) (2026-09-25)
+
+
+### Bug Fixes
+
+* **server:** bind terminal WebSocket to loopback by default ([8796397](https://github.com/snomiao/wtx/commit/879639774d8c48e09c501154d53daacdf7da3d74))
+
 ## [0.3.1](https://github.com/snomiao/wtx/compare/v0.3.0...v0.3.1) (2026-07-31)
 
 
