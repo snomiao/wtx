@@ -6,7 +6,6 @@
  * Features:
  * - VS Code Light/Dark Modern themes with system auto-switch
  * - OSC 11 background color query response (dark/light detection for shell programs)
- * - VT theme change notification (CSI ? 997 ; 1/2 h) on system theme switch
  * - CJK double-width (Unicode11Addon)
  * - Clickable URLs with wrapped-URL reconstruction
  * - DOM rendering (for browser extension compatibility, e.g. 10ten Japanese Reader)
@@ -16,6 +15,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
+import { TerminalReplay } from "./replay";
 import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -164,16 +164,16 @@ export default function WTx({
         },
       });
 
+      const replay = new TerminalReplay(term);
+
       // Theme auto-switch
       const onThemeChange = () => {
         term.options.theme = getTheme();
         if (wrapperRef.current) {
           wrapperRef.current.style.backgroundColor = getTheme()?.background ?? "#000000";
         }
-        // Notify shell programs of theme change via VT sequence (CSI ? 997 ; 1/2 h)
-        // 1 = dark, 2 = light
-        const mode = prefersDark?.matches ? "1" : "2";
-        wsRef.current?.send(`\x1b[?997;${mode}h`);
+        // Applying a browser theme is not terminal input. Programs can query
+        // the background with OSC 11; do not inject unsolicited CSI bytes.
       };
       prefersDark?.addEventListener("change", onThemeChange);
 
@@ -221,7 +221,9 @@ export default function WTx({
         if (data === "?") {
           const bg = getTheme()?.background ?? "#000000";
           const reply = `\x1b]11;${hexToOscRgb(bg)}\x1b\\`;
-          wsRef.current?.send(reply);
+          if (replay.acceptingInput && wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(reply);
+          }
         }
         return true;
       });
@@ -317,7 +319,7 @@ export default function WTx({
       const absUrl = `${base}?${params}`;
 
       term.onData((data) => {
-        if (ws?.readyState === WebSocket.OPEN) ws.send(data);
+        if (replay.acceptingInput && ws?.readyState === WebSocket.OPEN) ws.send(data);
       });
 
       term.onResize(({ cols, rows }) => {
@@ -374,6 +376,8 @@ export default function WTx({
           if (typeof e.data === "string") {
             try {
               const msg = JSON.parse(e.data);
+              if (msg.type === "replay-start") { replay.begin(); return; }
+              if (msg.type === "replay-end") { replay.end(); return; }
               if (msg.type === "pong") {
                 if (pongTimer) window.clearTimeout(pongTimer);
                 pongTimer = undefined;

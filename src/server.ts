@@ -697,10 +697,13 @@ export function startTerminalWS() {
         // Add client to session
         session.clients.add(ws);
 
-        // Replay buffer to new client
+        // Mark history so the browser does not answer stale terminal queries
+        // back into the currently running application during reconnect.
+        ws.send(JSON.stringify({ type: "replay-start" }));
         for (const chunk of session.buffer) {
           ws.send(chunk);
         }
+        ws.send(JSON.stringify({ type: "replay-end" }));
 
         // If session has exited, don't resize — just show the replay
         if ((session as any)._exited) return;
