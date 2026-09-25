@@ -450,6 +450,7 @@ type WSData = { url: string };
 export function startTerminalWS() {
   const server = Bun.serve<WSData>({
     port: PORT,
+    hostname: process.env.TERMINAL_WS_HOST ?? "127.0.0.1",
 
     async fetch(req, server) {
       const url = new URL(req.url);
