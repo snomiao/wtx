@@ -1,3 +1,10 @@
+## [0.3.4](https://github.com/snomiao/wtx/compare/v0.3.3...v0.3.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **terminal:** suppress stale query replies during history replay ([#3](https://github.com/snomiao/wtx/issues/3)) ([a8eb229](https://github.com/snomiao/wtx/commit/a8eb229b27455a07484495f85cddb2a881e133ee))
+
 ## [0.3.3](https://github.com/snomiao/wtx/compare/v0.3.2...v0.3.3) (2026-10-14)
 
 
