@@ -426,7 +426,54 @@ function validateCwd(raw: string | null): string {
   return resolved;
 }
 
-// --- Resize debounce ---
+// --- Size negotiation across attached clients ---
+
+export interface TermSize {
+  cols: number;
+  rows: number;
+}
+
+/**
+ * The PTY size a session should run at, given every attached client's own
+ * size (its "cap"): the smallest of each, so no tab ever receives lines wider
+ * or a screen taller than it can show. Last-writer-wins (the old rule) left
+ * the narrower of two tabs hard-wrapping the wider tab's lines mid-word, and
+ * flipped the application's layout every time either tab re-fitted. With no
+ * caps (nobody attached) the current size stands.
+ */
+export function negotiateSize(caps: Iterable<TermSize>, current: TermSize): TermSize {
+  let cols = Infinity;
+  let rows = Infinity;
+  for (const c of caps) {
+    if (!Number.isFinite(c.cols) || !Number.isFinite(c.rows)) continue;
+    cols = Math.min(cols, c.cols);
+    rows = Math.min(rows, c.rows);
+  }
+  if (!Number.isFinite(cols) || !Number.isFinite(rows)) return current;
+  return { cols: Math.max(MIN_COLS, Math.floor(cols)), rows: Math.max(MIN_ROWS, Math.floor(rows)) };
+}
+
+/** A client's own terminal size, as it last reported it. */
+function clientCap(ws: ServerWebSocket<WSData>): TermSize | undefined {
+  return (ws as any)._cap;
+}
+
+function setClientCap(ws: ServerWebSocket<WSData>, cols: number, rows: number) {
+  (ws as any)._cap = { cols: Math.max(MIN_COLS, cols), rows: Math.max(MIN_ROWS, rows) };
+}
+
+/** Tell every attached client the size the session now runs at, so each can
+ *  clamp its own xterm to it (a wider tab then shows the same, unwrapped lines). */
+function broadcastSize(session: Session) {
+  const msg = JSON.stringify({ type: "size", cols: session.cols, rows: session.rows });
+  for (const client of session.clients) {
+    try {
+      client.send(msg);
+    } catch {
+      /* closing — its close handler re-negotiates */
+    }
+  }
+}
 
 const resizeDebounce = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -436,9 +483,14 @@ function applyResize(sessionKey: string) {
     sessionKey,
     setTimeout(() => {
       const session = sessions.get(sessionKey);
-      if (!session || session.clients.size === 0) return;
-      // Use the most recent client's size (last resize wins)
-      session.pty.resize(session.cols, session.rows);
+      if (!session || session.clients.size === 0 || (session as any)._exited) return;
+      const caps = [...session.clients].map(clientCap).filter((c): c is TermSize => !!c);
+      const next = negotiateSize(caps, { cols: session.cols, rows: session.rows });
+      if (next.cols === session.cols && next.rows === session.rows) return;
+      session.cols = next.cols;
+      session.rows = next.rows;
+      session.pty.resize(next.cols, next.rows);
+      broadcastSize(session);
     }, 50),
   );
 }
@@ -705,9 +757,11 @@ export function startTerminalWS() {
         // If session has exited, don't resize — just show the replay
         if ((session as any)._exited) return;
 
-        // Update session size
-        session.cols = cols;
-        session.rows = rows;
+        // This client's size is one cap among the attached clients'; the
+        // session runs at the smallest. Tell the newcomer the current size
+        // right away so it can clamp its xterm, then re-negotiate.
+        setClientCap(ws, cols, rows);
+        ws.send(JSON.stringify({ type: "size", cols: session.cols, rows: session.rows }));
         applyResize(sessionKey);
       },
 
@@ -720,8 +774,7 @@ export function startTerminalWS() {
           try {
             const parsed = JSON.parse(message);
             if (parsed.type === "resize" && parsed.cols && parsed.rows) {
-              session.cols = Math.max(MIN_COLS, parsed.cols);
-              session.rows = Math.max(MIN_ROWS, parsed.rows);
+              setClientCap(ws, Number(parsed.cols), Number(parsed.rows));
               applyResize(sessionKey);
               return;
             }
@@ -748,6 +801,8 @@ export function startTerminalWS() {
         console.log(
           `[term] client disconnected from ${sessionKey} (${session.clients.size} remaining)`,
         );
+        // A departed (possibly the smallest) client no longer caps the size.
+        applyResize(sessionKey);
       },
     },
   });

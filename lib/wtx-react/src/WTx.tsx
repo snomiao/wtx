@@ -257,6 +257,29 @@ export default function WTx({
       (window as any).__fitAddon = fitAddon;
 
       // --- Fit ---
+      // The session runs at the SMALLEST size among every tab attached to it
+      // (the server negotiates; see negotiateSize). This tab reports the size
+      // its pane could show as its cap, and clamps its xterm to the size the
+      // server announces, so a wider tab shows the same unwrapped lines rather
+      // than hard-wrapping the narrower tab's output mid-word. Reporting the
+      // pane size rather than the clamped size is what lets the session grow
+      // back when the small tab leaves.
+      let sessionSize: { cols: number; rows: number } | null = null;
+      let lastReported = "";
+      const reportCap = (cols: number, rows: number) => {
+        const key = `${cols}x${rows}`;
+        if (key === lastReported || ws?.readyState !== WebSocket.OPEN) return;
+        lastReported = key;
+        ws.send(JSON.stringify({ type: "resize", cols, rows }));
+      };
+      const fitClamped = () => {
+        const dims = fitAddon.proposeDimensions();
+        if (!dims || !dims.cols || !dims.rows) return;
+        const cols = sessionSize ? Math.min(dims.cols, sessionSize.cols) : dims.cols;
+        const rows = sessionSize ? Math.min(dims.rows, sessionSize.rows) : dims.rows;
+        if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows);
+        reportCap(dims.cols, dims.rows);
+      };
       let fitRaf = 0;
       const debouncedFit = () => {
         cancelAnimationFrame(fitRaf);
@@ -264,7 +287,7 @@ export default function WTx({
           if (disposed) return;
           const buf = term.buffer.active;
           const wasAtBottom = buf.baseY + term.rows >= buf.length;
-          fitAddon.fit();
+          fitClamped();
           if (wasAtBottom) term.scrollToBottom();
         });
       };
@@ -292,14 +315,14 @@ export default function WTx({
         term.dispose();
         return;
       }
-      fitAddon.fit();
+      fitClamped();
       // Belt-and-suspenders: force refit at 300 ms and 800 ms after init in
       // case ResizeObserver doesn't fire on mobile (e.g. Firefox Android).
       setTimeout(() => {
-        if (!disposed) fitAddon.fit();
+        if (!disposed) fitClamped();
       }, 300);
       setTimeout(() => {
-        if (!disposed) fitAddon.fit();
+        if (!disposed) fitClamped();
       }, 800);
 
       // --- WebSocket ---
@@ -320,11 +343,9 @@ export default function WTx({
         if (ws?.readyState === WebSocket.OPEN) ws.send(data);
       });
 
-      term.onResize(({ cols, rows }) => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: "resize", cols, rows }));
-        }
-      });
+      // Size reports go through fitClamped (the pane size, not the clamped
+      // xterm size — see above), never from onResize, or a clamp would be
+      // reported back as this tab's cap and the session could never grow.
 
       // Heartbeat: ping every 10s; if no pong within 8s, force-reconnect.
       // Catches zombie sockets where readyState=OPEN but data doesn't flow.
@@ -382,6 +403,11 @@ export default function WTx({
               if (msg.type === "cwd" && msg.path) {
                 onCwdChangeRef.current?.(msg.path);
                 (window as any).__termCwd = msg.path;
+                return;
+              }
+              if (msg.type === "size" && msg.cols && msg.rows) {
+                sessionSize = { cols: Number(msg.cols), rows: Number(msg.rows) };
+                fitClamped();
                 return;
               }
             } catch {
