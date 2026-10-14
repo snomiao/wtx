@@ -1,3 +1,10 @@
+## [0.3.3](https://github.com/snomiao/wtx/compare/v0.3.2...v0.3.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **size:** run a shared session at the smallest attached tab's size ([#2](https://github.com/snomiao/wtx/issues/2)) ([24749d7](https://github.com/snomiao/wtx/commit/24749d798d70bf32d6f0228c05f306858e5a12a3))
+
 ## [0.3.2](https://github.com/snomiao/wtx/compare/v0.3.1...v0.3.2) (2026-09-25)
 
 
