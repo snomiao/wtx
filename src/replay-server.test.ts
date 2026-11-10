@@ -21,10 +21,14 @@ test("server brackets reconnect history with replay control frames", async () =>
       const timeout = setTimeout(() => reject(new Error("Replay timed out")), 5000);
       socket = new WebSocket(`ws://127.0.0.1:${server.port}/?session=replay-test`);
       socket.binaryType = "arraybuffer";
+      // The server follows replay-end with a size frame (min-size negotiation),
+      // which can arrive before the await resumes; only keep the replay itself.
+      let ended = false;
       socket.onmessage = event => {
+        if (ended) return;
         frames.push(typeof event.data === "string" ? event.data : new Uint8Array(event.data));
         if (typeof event.data === "string" && JSON.parse(event.data).type === "replay-end") {
-          clearTimeout(timeout); resolve();
+          ended = true; clearTimeout(timeout); resolve();
         }
       };
       socket.onerror = () => {clearTimeout(timeout); reject(new Error("WebSocket failed"));};
