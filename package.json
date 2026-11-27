@@ -58,5 +58,12 @@
   },
   "engines": {
     "bun": ">=1.0.0"
+  },
+  "rustify": {
+    "mode": "hybrid",
+    "bins": {
+      "wtx": "wtx"
+    },
+    "rootEnv": "WTX_PACKAGE_ROOT"
   }
 }
