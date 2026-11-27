@@ -36,28 +36,27 @@ jobs:
       # wtx.mjs reads no arguments: every command line, --help and --version
       # included, starts the terminal server and keeps it running, so nothing
       # it answers ever exits 0. The first command is therefore one that is
-      # meant to fail before the server listens (see smoke-env): `[1]` says
-      # it ends with exit code 1. The binary hands it back, as it does every
-      # command line.
+      # meant to fail before the server listens: `[1]` says it ends with exit
+      # code 1. The binary hands it back, as it does every command line.
       smoke: "[1] wtx"
-      smoke-expect: koho-term-zshrc
-      # Each smoke command gets these. The server module first creates
-      # <temp dir>/koho-term-zshrc (src/server.ts:78); a temp directory name
-      # longer than the 255 characters Linux, macOS and Windows allow for one
-      # path component makes that throw, so wtx.mjs exits 1 before it calls
-      # Bun.serve and before it writes anything. Which of TMPDIR, TMP and TEMP
-      # bun takes depends on the system, hence all three. Should it get past that
-      # all the same, it would bind to 192.0.2.1, an address reserved for
-      # documentation that no runner has, and fail there instead of listening.
+      smoke-expect: is out of range
+      # Each smoke command gets these. src/server.ts reads TERMINAL_WS_PORT
+      # with parseInt and hands it to Bun.serve, which refuses 99999 before it
+      # binds anything (ERR_OUT_OF_RANGE, the same on Linux, macOS and
+      # Windows), so wtx.mjs exits 1 without listening. Should it get past
+      # that all the same, it would bind to 192.0.2.1, an address reserved
+      # for documentation that no runner has, and fail there. Before that,
+      # the module writes its small zsh configuration under the runner's temp
+      # directory (koho-term-zshrc), as every start of wtx does.
+      # (A temp directory name no file system accepts would stop it earlier,
+      # but bun on Windows hangs with such a TEMP instead of failing.)
       smoke-env: |
-        TMPDIR=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
-        TMP=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
-        TEMP=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
+        TERMINAL_WS_PORT=99999
         TERMINAL_WS_HOST=192.0.2.1
       # Handed back to wtx.mjs on every platform (rs/src/js_fallback.rs is
-      # helper v5, so [handback] is checked), which stops at that mkdir with
+      # helper v5, so [handback] is checked), which fails at Bun.serve with
       # exit code 1 and never says it is listening: with no arguments, and
       # with --version.
       smoke-extra: |
-        [1] [handback] wtx => koho-term-zshrc !> listening
-        [1] [handback] wtx --version => koho-term-zshrc !> listening
+        [1] [handback] wtx => is out of range !> listening
+        [1] [handback] wtx --version => is out of range !> listening
