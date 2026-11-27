@@ -35,11 +35,12 @@ jobs:
       version: ${{ inputs.version }}
       # wtx.mjs reads no arguments: every command line, --help and --version
       # included, starts the terminal server and keeps it running, so nothing
-      # the JavaScript answers ever exits 0. `--rustify-version` alone is the
-      # one line the binary answers itself (rs/src/main.rs); it exists for
-      # this check only.
-      smoke: wtx --rustify-version
-      smoke-expect: the native binary answered
+      # it answers ever exits 0. The first command is therefore one that is
+      # meant to fail before the server listens (see smoke-env): `[1]` says
+      # it ends with exit code 1. The binary hands it back, as it does every
+      # command line.
+      smoke: "[1] wtx"
+      smoke-expect: koho-term-zshrc
       # Each smoke command gets these. The server module first creates
       # <temp dir>/koho-term-zshrc (src/server.ts:78); a temp directory name
       # longer than the 255 characters Linux, macOS and Windows allow for one
@@ -55,9 +56,8 @@ jobs:
         TERMINAL_WS_HOST=192.0.2.1
       # Handed back to wtx.mjs on every platform (rs/src/js_fallback.rs is
       # helper v5, so [handback] is checked), which stops at that mkdir with
-      # exit code 1 and never says it is listening: with no arguments, with
-      # --version, and with --rustify-version followed by anything.
+      # exit code 1 and never says it is listening: with no arguments, and
+      # with --version.
       smoke-extra: |
         [1] [handback] wtx => koho-term-zshrc !> listening
         [1] [handback] wtx --version => koho-term-zshrc !> listening
-        [1] [handback] wtx --rustify-version now => koho-term-zshrc !> listening
