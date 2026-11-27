@@ -1,0 +1,63 @@
+# Builds the Rust `wtx` binary for every platform, packs it together with the
+# TypeScript the package ships, and checks on Linux, macOS and Windows (x64
+# and arm64) that `bun i -g` / `npm i -g` gives a working `wtx` command that
+# hands its command lines to wtx.mjs.
+#
+# It does not publish. Releases still go through release.yml.
+#
+# The pipeline lives in https://github.com/snomiao/rustify.
+
+name: rust-npm-release
+
+on:
+  pull_request:
+    # The smoke lines below run wtx.mjs and src/server.ts, and rely on where
+    # src/server.ts stops (see smoke-env), so a change there reruns them.
+    paths:
+      - "rs/**"
+      - "src/**"
+      - "wtx.mjs"
+      - "package.json"
+      - ".github/workflows/rust-npm-release.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without a leading v (default: the version in rs/Cargo.toml)"
+        required: false
+        type: string
+
+jobs:
+  build:
+    uses: snomiao/rustify/.github/workflows/rust-npm-build.yml@releases/v1
+    with:
+      manifest: rs/Cargo.toml
+      bins: wtx
+      version: ${{ inputs.version }}
+      # wtx.mjs reads no arguments: every command line, --help and --version
+      # included, starts the terminal server and keeps it running, so nothing
+      # the JavaScript answers ever exits 0. `--rustify-version` alone is the
+      # one line the binary answers itself (rs/src/main.rs); it exists for
+      # this check only.
+      smoke: wtx --rustify-version
+      smoke-expect: the native binary answered
+      # Each smoke command gets these. The server module first creates
+      # <temp dir>/koho-term-zshrc (src/server.ts:78); a temp directory name
+      # longer than the 255 characters Linux, macOS and Windows allow for one
+      # path component makes that throw, so wtx.mjs exits 1 before it calls
+      # Bun.serve and before it writes anything. Which of TMPDIR, TMP and TEMP
+      # bun takes depends on the system, hence all three. Should it get past that
+      # all the same, it would bind to 192.0.2.1, an address reserved for
+      # documentation that no runner has, and fail there instead of listening.
+      smoke-env: |
+        TMPDIR=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
+        TMP=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
+        TEMP=this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens-this-temp-directory-name-is-longer-than-any-file-system-allows-so-wtx-stops-before-it-listens
+        TERMINAL_WS_HOST=192.0.2.1
+      # Handed back to wtx.mjs on every platform (rs/src/js_fallback.rs is
+      # helper v5, so [handback] is checked), which stops at that mkdir with
+      # exit code 1 and never says it is listening: with no arguments, with
+      # --version, and with --rustify-version followed by anything.
+      smoke-extra: |
+        [1] [handback] wtx => koho-term-zshrc !> listening
+        [1] [handback] wtx --version => koho-term-zshrc !> listening
+        [1] [handback] wtx --rustify-version now => koho-term-zshrc !> listening
