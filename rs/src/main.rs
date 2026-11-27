@@ -7,8 +7,6 @@
 
 mod js_fallback;
 
-use std::io::Write;
-
 /// The package's JavaScript entry, relative to the package root.
 const JS_ENTRY: &str = "wtx.mjs";
 
@@ -44,23 +42,6 @@ fn main() {
         // match, or an `if let`.
         #[allow(clippy::match_single_binding, clippy::single_match)]
         match args.first().map(String::as_str) {
-            // Not a feature of wtx, and not a port. wtx.mjs reads no
-            // arguments: every command line, `--help` and `--version`
-            // included, starts the server on TERMINAL_WS_PORT, and none ends
-            // by itself. The install smoke test needs a command that exits 0
-            // (.github/workflows/rust-npm-release.yml), so the binary answers
-            // this one, which no user types, with its version. Everything
-            // else, this flag with anything after it too, goes to wtx.mjs as
-            // before. Remove it once the binary answers a real command itself.
-            Some("--rustify-version") if args.len() == 1 => {
-                // A reader that has gone away (`| head`) is not an error.
-                let _ = writeln!(
-                    std::io::stdout(),
-                    "wtx {}: the native binary answered; every other command line goes to {JS_ENTRY}",
-                    env!("CARGO_PKG_VERSION")
-                );
-                return;
-            }
             _ => {}
         }
     }
