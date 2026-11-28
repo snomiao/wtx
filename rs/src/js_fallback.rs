@@ -1,5 +1,10 @@
 //! rustify JS fallback v5 — copy into the crate as `src/js_fallback.rs`.
-//! (wtx: `run` also takes ROOT_ENV out of the JavaScript's environment.)
+//! (wtx's changes, each marked `wtx:` where it is made: wtx.mjs is started
+//! as its `#!/usr/bin/env bun` line has the system start it, and never with
+//! node, which cannot run it; on Windows bun is looked for as a command
+//! prompt looks for it, `bun.cmd` included; and ROOT_ENV is taken out of the
+//! JavaScript's environment when it names this package, as the launcher
+//! sets it, and only then.)
 //! (v2: waits for the JavaScript on Ctrl+C on Windows. v3: starts the
 //! JavaScript with the runtime its own `#!` line names, and offers a
 //! TypeScript entry to bun only. v4: says so when bun is what is missing.
@@ -112,40 +117,62 @@ pub fn run(entry: &str) -> ! {
     };
     let script = root.join(entry);
     let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
-    let candidates = runtimes(&script);
-    let mut last_error = None;
-    for runtime in &candidates {
-        let mut command = program(&runtime[0]);
-        // wtx: the JavaScript gets the environment it would have had without
-        // the binary. The launcher sets ROOT_ENV for the binary, and wtx
-        // passes its whole environment on to every terminal session, where
-        // the variable would show up.
-        command.args(&runtime[1..]).arg(&script).args(&args).env_remove(TRACE_ENV).env_remove(ROOT_ENV);
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::CommandExt;
-            // Replaces this process, so signals and the exit code need no relaying.
-            last_error = Some(command.exec());
-        }
-        #[cfg(not(unix))]
-        {
-            #[cfg(windows)]
-            stay_alive_on_ctrl_c();
-            match command.status() {
-                Ok(status) => std::process::exit(status.code().unwrap_or(1)),
-                Err(err) => last_error = Some(err),
-            }
-        }
+    // wtx: one way to start the entry, the one the published package has.
+    // Before this binary, `wtx` was wtx.mjs itself, which the system starts
+    // through its `#!/usr/bin/env bun` line: so does this, and `env` then
+    // looks for bun on PATH and says so, in its own words, when there is
+    // none. node is not tried: wtx.mjs imports "./src/server" without an
+    // extension, which node cannot resolve.
+    let runtime = runtime(&script);
+    let mut command = program(&runtime[0]);
+    command.args(&runtime[1..]).arg(&script).args(&args).env_remove(TRACE_ENV);
+    // wtx: the JavaScript gets the environment it would have had without the
+    // binary. The launcher sets ROOT_ENV to this package's directory, and wtx
+    // passes its whole environment on to every terminal session, where the
+    // variable would show up. A value of the user's own that names another
+    // directory stays, as it would for wtx.mjs.
+    if names_root(&root) {
+        command.env_remove(ROOT_ENV);
     }
-    let tried: Vec<&str> = candidates.iter().map(|c| c[0].as_str()).collect();
-    let reason = last_error.map(|e| e.to_string()).unwrap_or_default();
-    if tried == ["bun"] {
-        // A TypeScript entry: node is not offered, it cannot be relied on to run it.
-        eprintln!("cannot run {}: it needs bun, which could not be started ({reason}). See https://bun.sh", script.display());
+    #[cfg(unix)]
+    let error = {
+        use std::os::unix::process::CommandExt;
+        // Replaces this process, so signals and the exit code need no relaying.
+        command.exec()
+    };
+    #[cfg(not(unix))]
+    let error = {
+        #[cfg(windows)]
+        stay_alive_on_ctrl_c();
+        match command.status() {
+            Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+            Err(err) => err,
+        }
+    };
+    let program_name = std::path::Path::new(&runtime[0]).file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    if program_name.eq_ignore_ascii_case("bun") {
+        eprintln!("cannot run {}: it needs bun, which could not be started ({error}). See https://bun.sh", script.display());
     } else {
-        eprintln!("cannot run {}: none of {} could be started ({reason})", script.display(), tried.join(", "));
+        eprintln!("cannot run {}: {} could not be started ({error})", script.display(), runtime.join(" "));
     }
     std::process::exit(127);
+}
+
+/// Whether ROOT_ENV holds the directory `root`, as the npm launcher sets it
+/// (and as a test that points the binary at a package does). wtx: only then
+/// is it the launcher's, to be taken out of the JavaScript's environment.
+pub fn names_root(root: &std::path::Path) -> bool {
+    let Some(value) = std::env::var_os(ROOT_ENV) else {
+        return false;
+    };
+    let named = PathBuf::from(value);
+    if named.as_os_str().is_empty() {
+        return false;
+    }
+    match (std::fs::canonicalize(&named), std::fs::canonicalize(root)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => named == root,
+    }
 }
 
 /// What a ported command returns for an invocation, or a state of the
@@ -282,53 +309,103 @@ fn quiet_panics(on: bool) {
     }
 }
 
-/// The commands to try for running `script`, in order. First what the
-/// script's own `#!` line names, because that is what ran it before this
-/// binary existed; then bun and node, whichever is installed.
-fn runtimes(script: &std::path::Path) -> Vec<Vec<String>> {
-    let head = std::fs::read(script).unwrap_or_default();
-    let first_line = String::from_utf8_lossy(&head[..head.len().min(512)]).lines().next().unwrap_or("").to_string();
-    let is_typescript = matches!(
-        script.extension().and_then(|e| e.to_str()),
-        Some("ts" | "mts" | "cts" | "tsx")
-    );
-    let mut list: Vec<Vec<String>> = interpreter(&first_line).into_iter().collect();
-    // node cannot be relied on to run TypeScript, so it is only tried for a
-    // TypeScript entry when the entry asks for it.
-    let fallbacks: &[&str] = if is_typescript { &["bun"] } else { &["bun", "node"] };
-    for name in fallbacks {
-        if !list.iter().any(|c| c[0] == *name) {
-            list.push(vec![name.to_string()]);
+/// wtx: the command that runs `script`, before the script's path and the
+/// arguments. On Linux and macOS it is what the script's `#!` line names, as
+/// the system itself would start the script: for wtx.mjs `/usr/bin/env bun`,
+/// so that bun is looked for on PATH by `env`, which reports in its own words
+/// and with its own exit code when it is not there (127), as it did when
+/// the command was wtx.mjs itself. A script without such a line (the parity
+/// runner's stand-in package) is started with bun. On Windows, where nothing
+/// reads that line, it is bun, found as the package managers' command shims
+/// find it (`bun.exe`, or the `bun.cmd` that `npm i -g bun` writes).
+fn runtime(script: &std::path::Path) -> Vec<String> {
+    #[cfg(unix)]
+    {
+        let head = std::fs::read(script).unwrap_or_default();
+        if let Some(command) = shebang(&head, cfg!(target_os = "macos")) {
+            return command;
+        }
+        vec!["bun".to_string()]
+    }
+    #[cfg(windows)]
+    {
+        let _ = script;
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| DEFAULT_PATHEXT.to_string());
+        let found = find_program("bun", std::env::split_paths(&path), &pathext, |file| file.is_file());
+        vec![found.map_or_else(|| "bun".to_string(), |file| file.to_string_lossy().into_owned())]
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = script;
+        vec!["bun".to_string()]
+    }
+}
+
+/// The interpreter and its arguments that the system takes from a script's
+/// first line, `#!<interpreter> <argument>`: on Linux the rest of the line is
+/// one argument, on macOS (`split`) it is split at blanks. `None` for a line
+/// that is not a `#!` line or names no absolute interpreter, which the system
+/// would not start that way.
+#[allow(dead_code)] // unused on Windows, which reads no `#!` line
+fn shebang(head: &[u8], split: bool) -> Option<Vec<String>> {
+    let rest = head.strip_prefix(b"#!")?;
+    let line = &rest[..rest.iter().position(|&b| b == b'\n').unwrap_or(rest.len())];
+    let line = std::str::from_utf8(line).ok()?;
+    let blank = |c: char| c == ' ' || c == '\t';
+    let line = line.trim_start_matches(blank);
+    let (interpreter, argument) = line.split_once(blank).unwrap_or((line, ""));
+    if !interpreter.starts_with('/') {
+        return None;
+    }
+    let mut command = vec![interpreter.to_string()];
+    let argument = argument.trim_matches(blank);
+    if split {
+        command.extend(argument.split(blank).filter(|word| !word.is_empty()).map(String::from));
+    } else if !argument.is_empty() {
+        command.push(argument.to_string());
+    }
+    Some(command)
+}
+
+/// What Windows takes for PATHEXT when it is not set.
+#[allow(dead_code)]
+const DEFAULT_PATHEXT: &str = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC";
+
+/// The first `<dir>\<name><ext>` that is a file, for the directories of PATH
+/// in order and, in each, the extensions of PATHEXT in order, as a command
+/// prompt looks for a command (but not in the current directory first).
+/// Only the extensions a program can be started from count: `.com`, `.exe`,
+/// and the `.bat` and `.cmd` files that Rust starts through cmd.exe, with
+/// their arguments quoted for it.
+#[allow(dead_code)] // used on Windows, tested everywhere
+fn find_program(
+    name: &str,
+    dirs: impl IntoIterator<Item = PathBuf>,
+    pathext: &str,
+    is_file: impl Fn(&std::path::Path) -> bool,
+) -> Option<PathBuf> {
+    let extensions: Vec<&str> = pathext
+        .split(';')
+        .filter(|ext| [".com", ".exe", ".bat", ".cmd"].iter().any(|known| ext.eq_ignore_ascii_case(known)))
+        .collect();
+    for dir in dirs {
+        if dir.as_os_str().is_empty() {
+            continue;
+        }
+        for ext in &extensions {
+            let file = dir.join(format!("{name}{ext}"));
+            if is_file(&file) {
+                return Some(file);
+            }
         }
     }
-    list
+    None
 }
 
-/// The command a `#!` line asks for, without its directory:
-/// `#!/usr/bin/env node` is `["node"]`, `#!/usr/bin/env -S npx tsx` is
-/// `["npx", "tsx"]`, and a line that is not a `#!` line is `None`.
-fn interpreter(first_line: &str) -> Option<Vec<String>> {
-    let mut words = first_line.strip_prefix("#!")?.split_whitespace();
-    let name = |path: &str| path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
-    let first = name(words.next()?);
-    let command: Vec<String> = if first == "env" {
-        // Skip env's own flags (-S) and VAR=value settings.
-        words.skip_while(|w| w.starts_with('-') || w.contains('=')).map(String::from).collect()
-    } else {
-        std::iter::once(first).chain(words.map(String::from)).collect()
-    };
-    (!command.is_empty()).then_some(command)
-}
-
-/// A command for `name`. On Windows, tools installed by a package manager
-/// (npx, tsx, …) are `.cmd` files, which have to be started through cmd.
+/// A command for `name`. (wtx: there is nothing else to start: bun, or what
+/// the `#!` line names.)
 fn program(name: &str) -> Command {
-    #[cfg(windows)]
-    if !matches!(name, "bun" | "node" | "deno") {
-        let mut command = Command::new("cmd");
-        command.args(["/C", name]);
-        return command;
-    }
     Command::new(name)
 }
 
@@ -357,21 +434,45 @@ fn stay_alive_on_ctrl_c() {
 mod tests {
     use super::*;
 
-    fn names(script: &std::path::Path) -> Vec<String> {
-        runtimes(script).into_iter().map(|c| c.join(" ")).collect()
+    /// wtx: the `#!` line as Linux (one argument) and macOS (split at blanks)
+    /// read it.
+    #[test]
+    fn the_shebang_is_read_as_the_system_reads_it() {
+        let linux = |line: &str| shebang(line.as_bytes(), false);
+        let macos = |line: &str| shebang(line.as_bytes(), true);
+        // wtx.mjs's own line (with LF, as npm publishes it from Linux; a
+        // Windows checkout may have CR LF).
+        let wtx = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../wtx.mjs")).unwrap().replace("\r\n", "\n").into_bytes();
+        assert_eq!(shebang(&wtx, false).unwrap(), ["/usr/bin/env", "bun"]);
+        assert_eq!(shebang(&wtx, true).unwrap(), ["/usr/bin/env", "bun"]);
+        assert_eq!(linux("#!/usr/bin/env bun\nimport x").unwrap(), ["/usr/bin/env", "bun"]);
+        assert_eq!(linux("#! \t/usr/bin/env  bun \t\n").unwrap(), ["/usr/bin/env", "bun"]);
+        assert_eq!(linux("#!/usr/bin/env -S bun --smol\n").unwrap(), ["/usr/bin/env", "-S bun --smol"]);
+        assert_eq!(macos("#!/usr/bin/env -S bun --smol\n").unwrap(), ["/usr/bin/env", "-S", "bun", "--smol"]);
+        assert_eq!(linux("#!/bin/sh").unwrap(), ["/bin/sh"]);
+        // A carriage return is part of the line for the system.
+        assert_eq!(linux("#!/usr/bin/env bun\r\n").unwrap(), ["/usr/bin/env", "bun\r"]);
+        assert_eq!(linux("#!env bun\n"), None);
+        assert_eq!(linux("console.log(1)\n"), None);
+        assert_eq!(linux(""), None);
     }
 
+    /// wtx: bun on Windows, as a command prompt finds it.
     #[test]
-    fn the_shebang_names_the_interpreter() {
-        assert_eq!(interpreter("#!/usr/bin/env node"), Some(vec!["node".to_string()]));
-        assert_eq!(interpreter("#!/usr/bin/env bun"), Some(vec!["bun".to_string()]));
-        assert_eq!(interpreter("#!/usr/local/bin/node --no-warnings").unwrap(), ["node", "--no-warnings"]);
-        assert_eq!(interpreter("#!/usr/bin/env -S npx tsx").unwrap(), ["npx", "tsx"]);
-        assert_eq!(interpreter("#!/usr/bin/env npx tsx").unwrap(), ["npx", "tsx"]);
-        assert_eq!(interpreter("#! /usr/bin/env  FOO=1 node").unwrap(), ["node"]);
-        assert_eq!(interpreter("import x from \"y\";"), None);
-        assert_eq!(interpreter("#!/usr/bin/env"), None);
-        assert_eq!(interpreter(""), None);
+    fn bun_is_found_as_a_command_prompt_finds_it() {
+        let files = ["c:/npm/bun.cmd", "c:/npm/bun.ps1", "c:/npm/bun", "c:/bun/bun.exe", "c:/js/bun.js"];
+        // Windows finds a file whatever the letter case of its name.
+        let spelt = |file: &std::path::Path| file.to_string_lossy().replace('\\', "/").to_lowercase();
+        let is_file = |file: &std::path::Path| files.iter().any(|f| *f == spelt(file));
+        let find = |dirs: &[&str], pathext: &str| find_program("bun", dirs.iter().map(PathBuf::from), pathext, is_file).map(|f| spelt(&f));
+        // The first directory of PATH that has it, whatever the extension.
+        assert_eq!(find(&["C:/npm", "C:/bun"], DEFAULT_PATHEXT).as_deref(), Some("c:/npm/bun.cmd"));
+        assert_eq!(find(&["C:/bun", "C:/npm"], DEFAULT_PATHEXT).as_deref(), Some("c:/bun/bun.exe"));
+        assert_eq!(find(&["", "C:/none", "C:/bun"], ".exe;.CMD").as_deref(), Some("c:/bun/bun.exe"));
+        // Only what a program can be started from: not a .ps1, a sh script or a .js.
+        assert_eq!(find(&["C:/js", "C:/npm"], ".JS;.PS1;.CMD").as_deref(), Some("c:/npm/bun.cmd"));
+        assert_eq!(find(&["C:/npm"], ".EXE"), None);
+        assert_eq!(find(&[], DEFAULT_PATHEXT), None);
     }
 
     /// Whether the test `test` of this module is to run in this process. The
@@ -509,22 +610,21 @@ mod tests {
         assert_eq!(reported(), expected);
     }
 
+    /// wtx: one way to start the entry, never node.
+    #[cfg(unix)]
     #[test]
-    fn the_script_decides_which_runtime_is_tried_first() {
-        let dir = std::env::temp_dir().join(format!("rustify-fallback-{}", std::process::id()));
+    fn the_entry_is_started_as_its_first_line_says_or_with_bun() {
+        let dir = std::env::temp_dir().join(format!("wtx-fallback-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = |name: &str, text: &str| {
             let path = dir.join(name);
             std::fs::write(&path, text).unwrap();
             path
         };
-        assert_eq!(names(&file("a.js", "#!/usr/bin/env node\nx")), ["node", "bun"]);
-        assert_eq!(names(&file("b.js", "#!/usr/bin/env bun\nx")), ["bun", "node"]);
-        assert_eq!(names(&file("c.js", "console.log(1)")), ["bun", "node"]);
-        assert_eq!(names(&file("d.ts", "#!/usr/bin/env bun\nx")), ["bun"]);
-        assert_eq!(names(&file("e.ts", "#!/usr/bin/env npx tsx\nx")), ["npx tsx", "bun"]);
-        assert_eq!(names(&file("f.ts", "#!/usr/bin/env node\nx")), ["node", "bun"]);
-        assert_eq!(names(&dir.join("missing.js")), ["bun", "node"]);
+        assert_eq!(runtime(&file("a.mjs", "#!/usr/bin/env bun\nx")), ["/usr/bin/env", "bun"]);
+        assert_eq!(runtime(&file("b.mjs", "#!/usr/bin/env node\nx")), ["/usr/bin/env", "node"]);
+        assert_eq!(runtime(&file("c.mjs", "console.log(1)")), ["bun"]);
+        assert_eq!(runtime(&dir.join("missing.mjs")), ["bun"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
