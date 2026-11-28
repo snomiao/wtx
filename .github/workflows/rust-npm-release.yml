@@ -1,7 +1,8 @@
-# Builds the Rust `wtx` binary for every platform, packs it together with the
-# TypeScript the package ships, and checks on Linux, macOS and Windows (x64
-# and arm64) that `bun i -g` / `npm i -g` gives a working `wtx` command that
-# hands its command lines to wtx.mjs.
+# Builds the Rust `wtx` binary for every platform, proves on Linux, macOS
+# and Windows that it behaves like wtx.mjs (rs/parity/proof.sh), packs it
+# together with the TypeScript the package ships, and checks on Linux, macOS
+# and Windows (x64 and arm64) that `bun i -g` / `npm i -g` gives a working
+# `wtx` command that hands its command lines to wtx.mjs.
 #
 # It does not publish. Releases still go through release.yml.
 #
@@ -11,13 +12,16 @@ name: rust-npm-release
 
 on:
   pull_request:
-    # The smoke lines below run wtx.mjs and src/server.ts, and rely on where
-    # src/server.ts stops (see smoke-env), so a change there reruns them.
+    # The proof compares the binary with wtx.mjs and src/ (and the Rust
+    # modules with the TypeScript's own functions), and the smoke lines rely
+    # on where src/server.ts stops (see smoke-env), so a change to any of
+    # them, or to the dependencies the TypeScript runs on, reruns it.
     paths:
       - "rs/**"
       - "src/**"
       - "wtx.mjs"
       - "package.json"
+      - "bun.lock"
       - ".github/workflows/rust-npm-release.yml"
   workflow_dispatch:
     inputs:
@@ -33,6 +37,25 @@ jobs:
       manifest: rs/Cargo.toml
       bins: wtx
       version: ${{ inputs.version }}
+      # Proof that the binary behaves like wtx.mjs, on Linux x64, macOS arm64
+      # and Windows x64, each with the binary just built for it.
+      # rs/parity/proof.sh checks that rs/parity.json is what
+      # rs/parity.gen.mjs writes and rs/src/testdata what rs/parity/record.ts
+      # records from this bun, then runs side by side
+      # - the parity cases (rs/parity.json): each starts the server, wtx.mjs
+      #   and the binary in turn, on 127.0.0.1 and a free port, drives it
+      #   over HTTP and WebSocket with sessions that run bun or a fake shell,
+      #   and compares everything it answered and logged; then the binary
+      #   against a stand-in package: every case must reach the JavaScript,
+      #   since the binary hands the whole server back on every system;
+      # - cargo test: the ported modules against what the TypeScript's own
+      #   functions answered under bun.
+      # `bun install` gives the TypeScript bun-pty and @xterm/headless.
+      parity-timeout-minutes: 45
+      parity-platforms: '["linux-x64", "darwin-arm64", "win32-x64"]'
+      parity: >-
+        bun install --frozen-lockfile
+        && sh rs/parity/proof.sh "$RUSTIFY_PARITY" "$RUSTIFY_BIN_DIR/wtx"
       # wtx.mjs reads no arguments: every command line, --help and --version
       # included, starts the terminal server and keeps it running, so nothing
       # it answers ever exits 0. The first command is therefore one that is
