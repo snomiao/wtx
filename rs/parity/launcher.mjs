@@ -82,18 +82,18 @@
 // Where a scenario fails on a fault of rustify's launcher that is known
 // (the verifier's, 2026-11-28), its failure says which and what rustify must
 // change, from the packed launcher's text or, for pnpm, from what the first
-// run left; it still fails. Known so far: a launcher that reads nothing when
-// a preload has deleted process.versions.bun and then passes bun's
-// process.env on (rustify's templates at cc50aec, releases/v1 a629a0a and
-// main 23f6df4); one that asks `name in process.env` inside the try that
-// guards the read (cc50aec and a629a0a; not 23f6df4); and one that, on Linux
-// and macOS, puts the binary in the place of the file pnpm's shim hands to
-// bun, which bun cannot run (all three). A copy of rustify's templates at
-// 23f6df4 with the first and the last repaired (no process.versions.bun
-// check; on Linux and macOS linking only where a bin directory of npm's or
-// bun's holds the command as a symbolic link to the launcher) passed every
-// scenario on Linux x64, macOS arm64 and Windows x64, with bun, npm and pnpm
-// (2026-11-28).
+// run left; it still fails. Known: a launcher that reads nothing when a
+// preload has deleted process.versions.bun and then passes bun's
+// process.env on (rustify's templates at cc50aec, a629a0a and 23f6df4); one
+// that asks `name in process.env` inside the try that guards the read
+// (cc50aec and a629a0a); and one that, on Linux and macOS, puts the binary
+// in the place of the file pnpm's shim hands to bun, which bun cannot run
+// (all three). rustify d9f603c (#57), main and releases/v1 since
+// 2026-11-28, has none of them: it reads the environment whatever
+// process.versions says, and on Linux and macOS links only where a bin
+// directory of npm's or bun's holds the command as a symbolic link to the
+// launcher. Every scenario passes with it on Linux x64, macOS arm64 and
+// Windows x64, with bun, npm and pnpm.
 //
 // Where a run through the launcher does not do what wtx.mjs does, as
 // rustify documents it, the difference itself is asserted, so that a bun or

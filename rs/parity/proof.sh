@@ -44,14 +44,16 @@
 #      there is one. A launcher older than v3 fails there, and so does the
 #      first cut of v3 (rustify 25ce88e), which took an empty environment,
 #      or one holding a variable a preload deleted, for a wrong read and
-#      passed bun's process.env on. So do rustify's templates up to now
-#      (cc50aec, releases/v1 a629a0a, main 23f6df4): the scenarios of a
+#      passed bun's process.env on. So do rustify's templates after it and
+#      before d9f603c (#57: cc50aec, a629a0a, 23f6df4): the scenarios of a
 #      preload that deletes process.versions.bun (the launcher then passes
 #      process.env on, .env files and all), before 23f6df4 the one of an
 #      object in process.env's place that throws when asked, and on Linux
 #      and macOS pnpm's second run (the launcher has put the binary where
 #      pnpm's shim runs `bun <file>`); each failure says what rustify must
-#      change. npm is the one on PATH, or PARITY_NPM_CLI (an npm-cli.js the
+#      change. Give the parity.mjs of rustify's templates from d9f603c on
+#      (releases/v1 since 2026-11-28), with which every scenario passes.
+#      npm is the one on PATH, or PARITY_NPM_CLI (an npm-cli.js the
 #      driver's runtime runs) where there is none; pnpm is PARITY_PNPM_CLI
 #      (a pnpm.cjs or pnpm.mjs that bun runs), or the one on PATH on Linux
 #      and macOS.
