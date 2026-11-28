@@ -64,7 +64,7 @@ jobs:
       # Every case starts a server twice and waits on it, and the hand-back
       # check runs them all again: on a Windows 11 machine with 3 lanes the
       # 83 cases that ran there before the verifier's took over 25 minutes,
-      # and 130 run there now.
+      # and 129 run there now.
       parity-timeout-minutes: 90
       parity-platforms: '["linux-x64", "darwin-arm64", "win32-x64"]'
       parity: >-
