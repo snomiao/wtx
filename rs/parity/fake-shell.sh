@@ -10,6 +10,11 @@
 #   size          prints the terminal's size (stty size: rows and columns)
 #   exit          ends
 #   anything else is printed back as `got [<line>]`
+#
+# It waits a moment before it says anything: what a program writes in its
+# first moments sometimes never reaches wtx (bun-pty; in about 1 of 100
+# starts on a loaded Linux machine), and the cases are not about that.
+sleep 0.2
 printf 'fake shell in %s\r\n' "$(pwd)"
 while IFS= read -r line; do
   case $line in
