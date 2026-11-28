@@ -62,6 +62,6 @@ fn main() {
     // holds the working directory's .env files: so wtx.mjs's bun loads them
     // itself, as when it is the command, and they stay out of the sessions.
     // A preload of bunfig.toml or BUN_OPTIONS has already run once in the
-    // launcher, which nothing here can undo (rs/parity/first-run.mjs).
+    // launcher, which nothing here can undo (rs/parity/launcher.mjs).
     js_fallback::run(JS_ENTRY)
 }
