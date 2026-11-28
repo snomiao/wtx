@@ -20,7 +20,9 @@
 //      log has been quiet for a moment, stops the server (SIGTERM; on
 //      Windows taskkill /T /F, since the binary there waits for bun as a
 //      child instead of becoming it), and prints how it ended and all it
-//      wrote on stdout and on stderr.
+//      wrote on stdout and on stderr. On Windows it first deletes the
+//      sessions still running and waits for their end in the log (see
+//      endSessions).
 //
 // It exits 0 whatever the server did: the server's own exit code and
 // output are part of what it prints. A server that ends before it listens
@@ -43,7 +45,8 @@
 //        one request on a connection of its own (Connection: close); a body
 //        that is not a string is sent as its JSON text, "bodyHex" as these
 //        bytes. "from" is the client's own address. Prints the status,
-//        Content-Type and body.
+//        Content-Type and body. On Windows, where it made a session (201),
+//        it then waits for the session's first output (see firstOutput).
 //   {"ws": "?cwd=<CWD>&cols=100", "name": "a", "path": "/", "from": ..., "headers": {...}}
 //        a WebSocket handshake; prints its status (101, or the answer).
 //   {"recv": "a", "until": <condition>, "timeout": 10000}
@@ -410,7 +413,64 @@ async function http(step) {
   if (!headers) return say(`< ${status}`);
   say(`< ${status}; content-type: ${headers["content-type"] ?? "(none)"}`);
   say(`  ${shown(body)}`);
+  if (isWindows && /^201\b/.test(status)) await firstOutput(body);
   return body;
+}
+
+/** The sessions the server lists (GET /sessions), or null. */
+async function listed() {
+  const answer = await request({ method: "GET", target: "/sessions" });
+  try {
+    const list = JSON.parse(parseResponse(answer.raw).body.toString("utf8"));
+    return Array.isArray(list) ? list : null;
+  } catch {
+    return null;
+  }
+}
+
+// On Windows ConPTY writes sequences of its own into a new session
+// (\x1b[?9001h\x1b[?1004h, 16 bytes), whether its program prints or not,
+// at a time of its choosing: of three sessions made in a row and then
+// listed, on a Windows 11 machine the first two had them and the third not
+// yet; on GitHub's Windows runner the first had them with one server and
+// not with the other, and the other two with neither. A step after the
+// POST then saw them or not by chance (the bufferBytes of GET /sessions, a
+// buffer read, a replay). So there each session made (the 201's body
+// names its key) is waited for until its buffer holds something or it has
+// ended, before the next step, on both sides alike; nothing is printed
+// unless it never does. On Linux and macOS a PTY writes nothing of its
+// own, and the buffer of a program that prints nothing stays empty.
+async function firstOutput(body) {
+  let key;
+  try {
+    key = JSON.parse(body.toString("utf8")).key;
+  } catch {
+    return;
+  }
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline && !ended) {
+    const session = (await listed())?.find((s) => s.key === key);
+    if (!session || session.bufferBytes > 0 || session.exited) return;
+    await pause(20);
+  }
+  if (!ended) say(`(the session ${JSON.stringify(key)} wrote nothing within 10 s)`);
+}
+
+// On Windows the server is stopped with taskkill /T /F, which ends a tree's
+// children before their parent (measured on Windows 11): a session's
+// program before the server, which may or may not log that end ("[term]
+// session <key> PTY exited") before it is ended in turn. So there each
+// session still running is deleted first (DELETE /sessions/<key>: the
+// server kills its program and logs that at once), and its line is waited
+// for, on both sides alike; the requests are not printed, the server's log
+// is. On Linux and macOS SIGTERM ends the server first, and a session's
+// program after it.
+async function endSessions() {
+  const running = (await listed())?.filter((s) => !s.exited).map((s) => s.key) ?? [];
+  const exits = () => (stdoutText().match(/ PTY exited/g) || []).length;
+  const before = exits();
+  for (const key of running) await request({ method: "DELETE", target: `/sessions/${encodeURIComponent(key)}` });
+  if (!(await until(() => exits() >= before + running.length, 10000))) say("(the server did not log the end of every session deleted before it was stopped)");
 }
 
 // ── WebSocket ───────────────────────────────────────────────────────────────
@@ -655,6 +715,10 @@ if (!ended) {
   if (!listening) say("(the server did not say it was listening within 15 s)");
   // Whatever the server still writes about the last steps.
   await until(() => Date.now() - lastLog >= 300, 3000);
+  if (isWindows && listening && !ended) {
+    await endSessions();
+    await until(() => Date.now() - lastLog >= 300, 3000);
+  }
   if (isWindows) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
   else server.kill("SIGTERM");
   const stopped = await Promise.race([end.then(() => true), pause(10000).then(() => false)]);
