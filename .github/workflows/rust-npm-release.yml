@@ -51,7 +51,10 @@ jobs:
       # - cargo test: the ported modules against what the TypeScript's own
       #   functions answered under bun.
       # `bun install` gives the TypeScript bun-pty and @xterm/headless.
-      parity-timeout-minutes: 45
+      # Every case starts a server twice and waits on it, and the hand-back
+      # check runs them all again: on a Windows 11 machine with 3 lanes this
+      # took over 25 minutes.
+      parity-timeout-minutes: 60
       parity-platforms: '["linux-x64", "darwin-arm64", "win32-x64"]'
       parity: >-
         bun install --frozen-lockfile
