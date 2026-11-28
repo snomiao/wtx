@@ -436,6 +436,19 @@ function handedToRuntime(installed) {
 
 // ── one run of the server ───────────────────────────────────────────────────
 
+/** Why a request got no answer: the code and words of what fetch names as the cause (node's
+ *  fetch says only "fetch failed" itself), and those of each error an AggregateError holds. On
+ *  the Windows machine a server that had said it was listening answered no request of a run,
+ *  three times (once with wtx.mjs run directly in a full proof, twice with two of these scripts
+ *  side by side), and the cause, if any, had no code; it did not happen again and was not
+ *  explained, and this is so that a run in CI says more. */
+function why(error) {
+  const cause = error?.cause ?? error;
+  const words = (e) => [e?.code, e?.message && !e.message.includes(e.code) ? e.message : null, e?.name !== "Error" && !e?.code ? e?.name : null].filter(Boolean);
+  const all = [...words(cause), ...(Array.isArray(cause?.errors) ? cause.errors.flatMap(words) : [])];
+  return [...new Set(all)].join("; ") || String(error);
+}
+
 function freePort() {
   return new Promise((resolve) => {
     const probe = net.createServer();
@@ -528,7 +541,7 @@ async function serve(start, verbatim, scenario) {
       const answer = await fetch(`http://127.0.0.1:${port}${target}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
       seen.push(`${method} ${target}: ${answer.status} ${await answer.text()}`);
     } catch (error) {
-      seen.push(`${method} ${target}: no answer (${error.cause?.code || error.message})`);
+      seen.push(`${method} ${target}: no answer (${why(error)})`);
     }
   };
   if (await until(() => /Terminal WS server listening on port/.test(text("stdout")), 20000)) {
@@ -622,12 +635,14 @@ const UNBUN = (name) => `delete process.versions.bun;\n${SETS(name)}`;
  *  process.env`. The variables are set on process.env itself, before: an assignment through such a
  *  Proxy (it has no set trap) defines the property on it, and so on process.env, and where
  *  process.env has the name already that is with the value alone, which bun refuses
- *  (ERR_INVALID_OBJECT_DEFINE_PROPERTY; bun 1.4.0 on Linux, 1.4.4 on macOS, 1.4.5 on Windows, not
- *  1.4.2 on Windows). On Windows bun has written what the launcher's run of the preload set into the
- *  environment the hand-back's bun starts with (in capitals: `fold`, below), so with bun 1.4.5 the
- *  preload threw there, in wtx.mjs's bun, and the server never listened (CI, 2026-11-28; rustify's
- *  ledger, parity/wtx.toml). This scenario is about the launcher's read, which must not fall back to
- *  process.env when the object in its place throws, not about such a preload. */
+ *  (ERR_INVALID_OBJECT_DEFINE_PROPERTY; measured with bun 1.4.0 on Linux and 1.4.4 on macOS, not
+ *  with 1.4.2 on Windows, which lets it through). With bun 1.4.5 on Windows the preload threw so in
+ *  wtx.mjs's bun on the first run, and the server never listened (CI, 2026-11-28; rustify's ledger,
+ *  parity/wtx.toml): most likely because bun there has written what the launcher's run of the
+ *  preload set into the environment the hand-back's bun starts with (in capitals: `fold`, below),
+ *  so that the name was there already. That is inferred from CI's error and the bun versions above;
+ *  no bun 1.4.5 was run on Windows but CI's. This scenario is about the launcher's read, which must
+ *  not fall back to process.env when the object in its place throws, not about such a preload. */
 const THROWS = (name) => `${SETS(name)}const real = process.env;\nprocess.env = new Proxy(real, { has() { throw new Error("no in"); } });\n`;
 /** A preload that says where it ran (the file bun was started with), logs it, and does `body`. */
 const preload = (name, log, body = SETS(name)) =>
