@@ -481,7 +481,7 @@ add("exit: deleting a session tells its clients", [create("k", QUIET), ...attach
 // but bun-pty starts the program with the server's whole environment and adds the
 // allowed ones on top, so every variable reaches it. /usr/bin/env through sh shows
 // what the program got (bun would load the .env of its directory itself).
-const ENV_DUMP = ["/bin/sh", "-c", "env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END"];
+const ENV_DUMP = ["/bin/sh", "-c", "env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
 const NO_BIN_SH = { win32: "there is no /bin/sh for bun-pty to start on Windows" };
 const envCase = (name, o) => add(`env: ${name}`, [{ http: "POST /sessions/k", body: { cmd: ENV_DUMP } }, wait("k", "END\r\n"), { http: "GET /sessions/k/buffer" }], { skip: NO_BIN_SH, ...o });
 envCase("every variable of the server reaches a session, wtx's own on top", {
