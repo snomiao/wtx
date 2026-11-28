@@ -177,7 +177,6 @@ pub fn names_root(root: &std::path::Path) -> bool {
 
 /// What a ported command returns for an invocation, or a state of the
 /// machine, that it does not implement exactly: the JavaScript has to answer.
-#[allow(dead_code)] // unused until the first command is ported
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HandBack;
 
@@ -240,7 +239,6 @@ pub fn commit() {
 /// catch anything: there a panic ends the process at once, with its usual
 /// message, and the JavaScript is not started. The Cargo.toml that `rustify
 /// scaffold` writes leaves the default, which unwinds.
-#[allow(dead_code)]
 pub fn attempt<T>(command: impl FnOnce() -> Result<T, HandBack>) -> Option<T> {
     use std::panic;
     // An attempt inside another starts afresh as well. When it returns, the

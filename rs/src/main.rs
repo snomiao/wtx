@@ -6,6 +6,7 @@
 //! still ships, so nothing changes for users.
 
 mod js_fallback;
+mod launcher;
 
 /// The package's JavaScript entry, relative to the package root.
 const JS_ENTRY: &str = "wtx.mjs";
@@ -51,6 +52,26 @@ fn main() {
         #[allow(clippy::match_single_binding, clippy::single_match)]
         match args.first().map(String::as_str) {
             _ => {}
+        }
+    }
+    // The one answer the binary gives itself, whatever the arguments: a run
+    // that the npm launcher started, under bun, which has already applied
+    // this directory's .env files, a bunfig.toml or variables of its own.
+    // Handed back, wtx would pass the .env values on to every terminal
+    // session, and its bun would apply all of it a second time; wtx.mjs
+    // does neither. So nothing is started, and the user is told why and
+    // what to do (rs/src/launcher.rs). It is worked out before anything is
+    // printed, so that a bug in it hands back. WTX_NO_NATIVE=1 hands it back
+    // all the same.
+    if native() {
+        let refusal = js_fallback::attempt(|| {
+            let root = js_fallback::package_root().ok_or(js_fallback::HandBack)?;
+            launcher::check(&root).ok_or(js_fallback::HandBack)
+        });
+        if let Some(message) = refusal {
+            // A closed stderr changes nothing: nothing is started.
+            let _ = std::io::Write::write_all(&mut std::io::stderr(), message.as_bytes());
+            std::process::exit(1);
         }
     }
     js_fallback::run(JS_ENTRY)
