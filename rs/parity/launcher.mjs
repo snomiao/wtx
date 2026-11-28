@@ -31,11 +31,12 @@
 //     place, or the launcher again where it cannot link.
 // Each run starts the server on 127.0.0.1 and a free port, creates one
 // session whose program writes its environment to a file (env, through
-// /bin/sh; on Windows node, writing process.env), waits for that session to
-// end, asks GET /sessions and GET /status/me/proj, stops the server, and
-// keeps what it printed on stdout and stderr, the HTTP answers, the
-// session's environment, the preloads' log, and the files in the working
-// directory and in the temp directory. Each must be what wtx.mjs run
+// /bin/sh; on Windows node, writing process.env) and stays, waits for the
+// file and until the server has been quiet for a moment, asks GET /sessions
+// and GET /status/me/proj, stops the server, and keeps what it printed on
+// stdout and stderr, the HTTP answers, the session's environment, the
+// preloads' log, and the files in the working directory and in the temp
+// directory. Each must be what wtx.mjs run
 // directly gave, but for one thing on a run through the launcher: each
 // preload that ran in the launcher (its line says it ran in "wtx", the
 // launcher's file, not in "wtx.mjs") has printed its line and written its
@@ -295,7 +296,7 @@ fs.writeFileSync(
   path.join(work, "dump-env.cjs"),
   'const fs = require("fs");\nconst out = process.argv[2];\n' +
     'fs.writeFileSync(out + ".part", Object.entries(process.env).map(([k, v]) => k + "=" + v + "\\n").join(""));\n' +
-    'fs.renameSync(out + ".part", out);\n',
+    'fs.renameSync(out + ".part", out);\nsetTimeout(() => {}, 30000);\n',
 );
 
 /** Starts the server with `start` in the scenario's directory, drives it, stops it: what was seen. */
@@ -347,21 +348,27 @@ async function serve(start, verbatim, scenario, caseDir) {
     }
   };
   if (await until(() => /Terminal WS server listening on port/.test(text("stdout")), 20000)) {
-    const program = isWindows ? [process.execPath, path.join(work, "dump-env.cjs"), dump] : ["/bin/sh", "-c", 'env > "$0.part" && mv "$0.part" "$0"', dump];
+    // The session's program stays (for at most 30 s) once it has written
+    // its environment: bun-pty sometimes does not report the end of one that
+    // exits at once, not even after 15 s (once in some 100 runs, on a busy
+    // machine), and it is stopped with the server.
+    const program = isWindows ? [process.execPath, path.join(work, "dump-env.cjs"), dump] : ["/bin/sh", "-c", 'env > "$0.part" && mv "$0.part" "$0" && exec sleep 30', dump];
     await ask("POST", "/sessions/s", { cmd: program, cwd: sessionDir });
-    const exited = async () => {
+    if (!(await until(() => fs.existsSync(dump), 15000))) seen.push("(the session did not write its environment)");
+    // Then until the server's log and the session's buffer (on Windows,
+    // ConPTY's own sequences) have been quiet for half a second: bun writes
+    // its log to a pipe a moment later, and what it has not written yet is
+    // lost when it is stopped.
+    let last = "";
+    let since = Date.now();
+    await until(async () => {
+      let now = text("stdout") + text("stderr");
       try {
-        const list = await (await fetch(`http://127.0.0.1:${port}/sessions`)).json();
-        return list.some((s) => s.key === "s" && s.exited);
-      } catch {
-        return false;
-      }
-    };
-    // Its end, and the server's line about it: bun writes its log to a pipe
-    // a moment later, and what it has not written yet is lost when it is stopped.
-    const over = async () => fs.existsSync(dump) && /\[term\] session s PTY exited\n/.test(text("stdout")) && (await exited());
-    if (!(await until(over, 15000))) seen.push("(the session did not end with its environment written)");
-    await pause(200);
+        now += JSON.stringify((await (await fetch(`http://127.0.0.1:${port}/sessions`)).json()).map((s) => s.bufferBytes));
+      } catch {}
+      if (now !== last) [last, since] = [now, Date.now()];
+      return Date.now() - since >= 500;
+    }, 10000);
     await ask("GET", "/sessions");
     await ask("GET", "/status/me/proj");
   } else seen.push("(it did not listen)");
