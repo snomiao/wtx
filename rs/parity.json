@@ -1128,7 +1128,8 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1",
     "PARITY_AS_SCRIPT": "1",
-    "PARITY_PATH": "<ROOT>/nodeonly"
+    "PARITY_PATH": "<ROOT>/nodeonly",
+    "PARITY_STAND_IN_CANNOT_RUN": "there is no bun on the server's PATH"
    },
    "setup": [
     "mkdir -p \"<ROOT>/nodeonly\" && ln -s \"$(command -v node)\" \"<ROOT>/nodeonly/node\""
@@ -1148,7 +1149,8 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1",
     "PARITY_AS_SCRIPT": "1",
-    "PARITY_PATH": "<ROOT>/nodeonly"
+    "PARITY_PATH": "<ROOT>/nodeonly",
+    "PARITY_STAND_IN_CANNOT_RUN": "there is no bun on the server's PATH"
    },
    "setup": [
     "mkdir -p \"<ROOT>/nodeonly\" && ln -s \"$(command -v node)\" \"<ROOT>/nodeonly/node\""
@@ -1166,7 +1168,8 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1",
     "PARITY_AS_SCRIPT": "1",
-    "PARITY_PATH": "<ROOT>/empty"
+    "PARITY_PATH": "<ROOT>/empty",
+    "PARITY_STAND_IN_CANNOT_RUN": "there is no bun on the server's PATH"
    },
    "skip": {
     "win32": "POSIX paths, a #! script and /bin/sh"
@@ -1181,7 +1184,8 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1",
     "PARITY_AS_SCRIPT": "1",
-    "PARITY_PATH_UNSET": "1"
+    "PARITY_PATH_UNSET": "1",
+    "PARITY_STAND_IN_CANNOT_RUN": "there may be no bun where a PATH that is not set leads"
    },
    "skip": {
     "win32": "POSIX paths, a #! script and /bin/sh"
@@ -1299,7 +1303,8 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1",
     "PARITY_AS_SCRIPT": "1",
-    "PARITY_PATH": "<ROOT>/nosb:{PATH}"
+    "PARITY_PATH": "<ROOT>/nosb:{PATH}",
+    "PARITY_STAND_IN_CANNOT_RUN": "the bun first on the server's PATH is not bun"
    },
    "setup": [
     "mkdir -p \"<ROOT>/nosb\" && printf 'echo \"no shebang bun $*\"\\nexit 7\\n' > \"<ROOT>/nosb/bun\" && chmod +x \"<ROOT>/nosb/bun\""
@@ -2435,6 +2440,9 @@
     "TERMINAL_WS_PORT": "99999",
     "PARITY_DIRECT": "1"
    },
+   "skip": {
+    "win32": "Windows takes a command line of at most 32,767 characters"
+   },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
   {
@@ -2597,7 +2605,7 @@
     "BUN_OPTIONS": "--preload <ROOT>/pre.mjs"
    },
    "setup": [
-    "echo 'console.error(\"preloaded \" + process.argv.length)' > \"<ROOT>/pre.mjs\""
+    "printf '%s\\n' 'if (/wtx\\.mjs$/.test(process.argv[1] ?? \"\")) console.error(\"preloaded \" + process.argv.length)' > \"<ROOT>/pre.mjs\""
    ],
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
@@ -2621,7 +2629,8 @@
    "env": {
     "PARITY_STEPS": "[]",
     "TERMINAL_WS_PORT": "99999",
-    "PARITY_DIRECT": "1"
+    "PARITY_DIRECT": "1",
+    "PARITY_STAND_IN_CANNOT_RUN": "bun refuses the bunfig.toml of the working directory"
    },
    "files": {
     "bunfig.toml": "this is [not toml\n"
@@ -3163,7 +3172,7 @@
     "BUN_OPTIONS": "--preload <ROOT>/pre.mjs"
    },
    "setup": [
-    "echo 'console.error(\"BUN_OPTIONS preload ran\")' > \"<ROOT>/pre.mjs\""
+    "printf '%s\\n' 'if (/wtx\\.mjs$/.test(process.argv[1] ?? \"\")) console.error(\"BUN_OPTIONS preload ran\")' > \"<ROOT>/pre.mjs\""
    ],
    "skip": {
     "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"

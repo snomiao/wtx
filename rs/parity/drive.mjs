@@ -102,13 +102,24 @@
 //                       script's own), and PARITY_PATH_UNSET=1 none at all;
 //                       the runner, its setup and after lines, and this
 //                       script keep theirs.
+//   PARITY_STAND_IN_CANNOT_RUN=<why>  in the runner's --handback check, no
+//                       runtime can start its stand-in package here (no bun
+//                       on the server's PATH, a bunfig.toml bun refuses): the
+//                       binary's own line that it handed back
+//                       (RUSTIFY_HANDBACK_TRACE) then stands for the stand-in's
+//                       marker, which this script prints. Direct starts only.
+//
+// Started by bun rather than node (macOS's `node` may be bun), this script
+// would itself read the .env and bunfig.toml of the case's directory, and
+// pass the .env values on to the server as real variables: rs/parity/proof.sh
+// then starts it with `bun --no-env-file --config=<an empty file>`.
 
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { install, REPO } from "./install.mjs";
 
 const isWindows = process.platform === "win32";
 const [program, ...programArgs] = process.argv.slice(2);
@@ -226,7 +237,6 @@ for (const name of Object.keys(env)) env[name] = fill(env[name]);
 
 // ── how the server is started ───────────────────────────────────────────────
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 // `bun wtx.mjs` is the TypeScript's side; anything else is the binary.
 const bunSide = path.basename(program).replace(/\.exe$/i, "").toLowerCase() === "bun";
 let command = program;
@@ -235,37 +245,28 @@ if (process.env.PARITY_AS_SCRIPT === "1" && bunSide && !isWindows) {
   command = path.resolve(programArgs[0]);
   commandArgs = programArgs.slice(1);
 }
-if (process.env.PARITY_INSTALL === "1") {
-  const inst = path.join(path.dirname(process.cwd()), "inst");
-  const scope = path.join(inst, "lib", "node_modules", "@snomiao");
-  const pkg = path.join(scope, "wtx");
-  const given = env.WTX_PACKAGE_ROOT;
-  delete env.WTX_PACKAGE_ROOT;
-  fs.mkdirSync(path.join(inst, "bin"), { recursive: true });
-  if (bunSide) {
-    // @snomiao/wtx 0.3.4 as published: the command is wtx.mjs.
-    fs.mkdirSync(pkg, { recursive: true });
-    for (const file of ["wtx.mjs", "package.json", "src"]) fs.cpSync(path.join(REPO, file), path.join(pkg, file), { recursive: true });
-    fs.chmodSync(path.join(pkg, "wtx.mjs"), 0o755);
-    fs.symlinkSync("../lib/node_modules/@snomiao/wtx/wtx.mjs", path.join(inst, "bin", "wtx"));
-  } else {
-    // The packed package: the command is the launcher, the binary is in the
-    // platform package beside it.
-    const dist = process.env.PARITY_DIST;
-    const key = `${process.platform}-${process.arch}`;
-    if (!dist || !fs.existsSync(path.join(dist, "main")) || !fs.existsSync(path.join(dist, key))) {
-      console.error(`drive.mjs: PARITY_INSTALL needs PARITY_DIST, a directory packed for ${key} (rs/parity/proof.sh packs one)`);
-      process.exit(2);
-    }
-    fs.cpSync(path.join(dist, "main"), pkg, { recursive: true });
-    fs.cpSync(path.join(dist, key), path.join(scope, `wtx-${key}`), { recursive: true });
-    if (given && path.resolve(given) !== REPO) fs.copyFileSync(path.join(given, "wtx.mjs"), path.join(pkg, "wtx.mjs"));
-    fs.chmodSync(path.join(pkg, "rustify", "wtx"), 0o755);
-    fs.chmodSync(path.join(scope, `wtx-${key}`, "bin", "wtx"), 0o755);
-    fs.symlinkSync("../lib/node_modules/@snomiao/wtx/rustify/wtx", path.join(inst, "bin", "wtx"));
+// The runner's --handback check points WTX_PACKAGE_ROOT at a stand-in
+// package, whose entry only prints a marker.
+const standIn = (() => {
+  if (!env.WTX_PACKAGE_ROOT || path.resolve(env.WTX_PACKAGE_ROOT) === REPO) return null;
+  try {
+    const entry = fs.readFileSync(path.join(env.WTX_PACKAGE_ROOT, "wtx.mjs"), "utf8");
+    const marker = /^console\.log\(("(?:[^"\\]|\\.)*")\);\s*$/.exec(entry);
+    return marker ? { root: env.WTX_PACKAGE_ROOT, marker: JSON.parse(marker[1]) } : null;
+  } catch {
+    return null;
   }
-  fs.symlinkSync(path.join(REPO, "node_modules"), path.join(pkg, "node_modules"));
-  command = path.join(inst, "bin", "wtx");
+})();
+if (process.env.PARITY_INSTALL === "1") {
+  delete env.WTX_PACKAGE_ROOT;
+  let installed;
+  try {
+    installed = install({ prefix: path.join(path.dirname(process.cwd()), "inst"), side: bunSide ? "ts" : "rs", dist: process.env.PARITY_DIST, standIn: standIn?.root });
+  } catch (error) {
+    console.error(`drive.mjs: ${error.message}`);
+    process.exit(2);
+  }
+  command = installed.command;
   commandArgs = bunSide ? programArgs.slice(1) : programArgs;
   if (process.env.PARITY_INSTALL_RUNS === "2" && !bunSide) {
     const warm = path.join(path.dirname(process.cwd()), "warm");
@@ -278,15 +279,28 @@ if (process.env.PARITY_WTX_PACKAGE_ROOT !== undefined) env.WTX_PACKAGE_ROOT = fi
 if (process.env.PARITY_PATH !== undefined) env.PATH = fill(process.env.PARITY_PATH).replaceAll("{PATH}", process.env.PATH ?? "");
 if (process.env.PARITY_PATH_UNSET === "1") delete env.PATH;
 
+// A case where no runtime can start the stand-in (no bun on the server's
+// PATH, a bunfig.toml bun refuses) says why in PARITY_STAND_IN_CANNOT_RUN.
+// In the --handback check the binary is then asked whether it handed back
+// (RUSTIFY_HANDBACK_TRACE), and its own line saying so stands for the marker.
+const traced = standIn && process.env.PARITY_STAND_IN_CANNOT_RUN ? standIn.marker : null;
+if (traced) env.RUSTIFY_HANDBACK_TRACE = "1";
+
 if (process.env.PARITY_DIRECT === "1") {
-  const child = spawn(command, commandArgs, { env, stdio: "inherit" });
+  const child = spawn(command, commandArgs, { env, stdio: ["inherit", "inherit", traced ? "pipe" : "inherit"] });
+  let handedBack = false;
+  child.stderr?.on("data", (chunk) => {
+    process.stderr.write(chunk);
+    if (chunk.toString("utf8").includes("rustify: handed back to the JavaScript")) handedBack = true;
+  });
   child.on("error", (error) => {
     console.error(`drive.mjs: could not start the server: ${error.code || error.message}`);
     process.exit(127);
   });
   // A runner that stops this script (its time limit) stops the server too.
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(signal, () => child.kill(signal));
-  child.on("exit", (code, signal) => {
+  child.on("close", (code, signal) => {
+    if (traced && handedBack) console.log(`${traced} (the binary handed back; ${process.env.PARITY_STAND_IN_CANNOT_RUN})`);
     if (signal) {
       process.removeAllListeners(signal);
       process.kill(process.pid, signal);

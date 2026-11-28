@@ -538,12 +538,13 @@ const direct = (name, o = {}) => add(name, [], { ...o, env: { ...DEAD, PARITY_DI
 // The TypeScript's side is wtx.mjs itself, as npm installs it (PARITY_AS_SCRIPT),
 // so that `env` looks for bun on the server's PATH (PARITY_PATH; the setup
 // lines keep the runner's, and {PATH} in it stands for that).
-const asScript = (name, o) => direct(`v-path: ${name}`, { ...o, env: { PARITY_AS_SCRIPT: "1", ...o.env }, skip: NO_WIN });
+const asScript = (name, o) => direct(`v-path: ${name}`, { ...o, env: { PARITY_AS_SCRIPT: "1", ...o.env, ...(o.noStandIn ? { PARITY_STAND_IN_CANNOT_RUN: o.noStandIn } : {}) }, skip: NO_WIN });
+const NO_BUN = "there is no bun on the server's PATH";
 const nodeOnly = ['mkdir -p "<ROOT>/nodeonly" && ln -s "$(command -v node)" "<ROOT>/nodeonly/node"'];
-asScript("only node on PATH, no bun", { env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly });
-asScript("only node on PATH, with --help", { args: ["--help"], env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly });
-asScript("neither bun nor node on PATH", { env: { PARITY_PATH: "<ROOT>/empty" } });
-asScript("PATH unset", { env: { PARITY_PATH_UNSET: "1" } });
+asScript("only node on PATH, no bun", { env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly, noStandIn: NO_BUN });
+asScript("only node on PATH, with --help", { args: ["--help"], env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly, noStandIn: NO_BUN });
+asScript("neither bun nor node on PATH", { env: { PARITY_PATH: "<ROOT>/empty" }, noStandIn: NO_BUN });
+asScript("PATH unset", { env: { PARITY_PATH_UNSET: "1" }, noStandIn: "there may be no bun where a PATH that is not set leads" });
 /** A bun on PATH that logs how it was started and starts the real one. */
 const shim = (dir) => `mkdir -p "${dir}" && printf '#!/bin/sh\\necho "$0 $*" >> "%s"\\nexec "%s" "$@"\\n' "<ROOT>/bun.log" "$(command -v bun)" > "${dir}/bun" && chmod +x "${dir}/bun"`;
 const BUN_LOG = ['cat "<ROOT>/bun.log"'];
@@ -552,7 +553,7 @@ asScript("a bun that is not executable comes first on PATH", { env: { PARITY_PAT
 asScript("a directory named bun comes first on PATH", { env: { PARITY_PATH: "<ROOT>/dirbun:{PATH}" }, setup: ['mkdir -p "<ROOT>/dirbun/bun"'] });
 asScript("a bun wrapper in a relative PATH entry", { env: { PARITY_PATH: "rel:{PATH}" }, setup: [shim("rel")], after: BUN_LOG });
 asScript("an empty PATH entry finds a bun wrapper in the working directory", { env: { PARITY_PATH: ":{PATH}" }, setup: [shim(".")], after: BUN_LOG });
-asScript("a bun on PATH that is a script without #!", { env: { PARITY_PATH: "<ROOT>/nosb:{PATH}" }, setup: ['mkdir -p "<ROOT>/nosb" && printf \'echo "no shebang bun $*"\\nexit 7\\n\' > "<ROOT>/nosb/bun" && chmod +x "<ROOT>/nosb/bun"'] });
+asScript("a bun on PATH that is a script without #!", { noStandIn: "the bun first on the server's PATH is not bun", env: { PARITY_PATH: "<ROOT>/nosb:{PATH}" }, setup: ['mkdir -p "<ROOT>/nosb" && printf \'echo "no shebang bun $*"\\nexit 7\\n\' > "<ROOT>/nosb/bun" && chmod +x "<ROOT>/nosb/bun"'] });
 
 // ── command lines and what bun reads before the program ──
 const start = (name, args, o = {}) => direct(`v-start: ${name}`, { ...o, args });
@@ -565,7 +566,7 @@ start("-- and -", ["--", "-"]);
 start("arguments with a newline and a tab", ["a\nb", "tab\there"]);
 start("flags that look like a port", ["--port=1", "-p", "2", "--host", "0.0.0.0"]);
 start("a thousand arguments", Array.from({ length: 1000 }, (_, i) => `a${i}`));
-start("one argument of 100 KB", ["x".repeat(100 * 1024)]);
+start("one argument of 100 KB", ["x".repeat(100 * 1024)], { skip: { win32: "Windows takes a command line of at most 32,767 characters" } });
 start("WTX_NO_NATIVE empty", [], { env: { WTX_NO_NATIVE: "" } });
 start("WTX_NO_NATIVE=0", [], { env: { WTX_NO_NATIVE: "0" } });
 start("input on stdin", [], { stdin: "some input\n" });
@@ -580,9 +581,12 @@ start("on a terminal with TERM=dumb", [], { tty: true, env: { TERM: "dumb" }, sk
 start("TERMINAL_WS_PORT 65536", [], { env: { TERMINAL_WS_PORT: "65536" } });
 start("TERMINAL_WS_PORT in full-width digits", [], { env: { TERMINAL_WS_PORT: "１２３" } });
 start("TERMINAL_WS_PORT 99999e9 (parseInt stops at e)", [], { env: { TERMINAL_WS_PORT: "99999e9" } });
-start("BUN_OPTIONS with a preload", [], { env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: ['echo \'console.error("preloaded " + process.argv.length)\' > "<ROOT>/pre.mjs"'] });
+// A preload prints only in the server (wtx.mjs): where `node` is bun, the
+// parity runner runs on bun, which takes BUN_OPTIONS too.
+const IN_WTX = 'if (/wtx\\.mjs$/.test(process.argv[1] ?? "")) ';
+start("BUN_OPTIONS with a preload", [], { env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: [`printf '%s\\n' '${IN_WTX}console.error("preloaded " + process.argv.length)' > "<ROOT>/pre.mjs"`] });
 start("bunfig.toml in the working directory preloads a script", [], { files: { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": 'console.error("bunfig preload");\n' } });
-start("bunfig.toml that is not TOML", [], { files: { "bunfig.toml": "this is [not toml\n" } });
+start("bunfig.toml that is not TOML", [], { files: { "bunfig.toml": "this is [not toml\n" }, env: { PARITY_STAND_IN_CANNOT_RUN: "bun refuses the bunfig.toml of the working directory" } });
 start("package.json in the working directory that is not JSON", [], { files: { "package.json": "{ not json" } });
 start("tsconfig.json in the working directory that is not JSON", [], { files: { "tsconfig.json": '{ "compilerOptions": ' } });
 start("package.json above the working directory that is not JSON", [], { setup: ['echo "{ nope" > "<ROOT>/package.json"'] });
@@ -684,7 +688,7 @@ installedStart("second run, plain", { second: true });
 installedStart("first run, --version and other words", { args: ["--version", "x"] });
 const BUNFIG_PRELOAD = { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": 'console.error("bunfig preload ran");\n' };
 installedStart("second run, a bunfig.toml preload in the working directory", { second: true, files: BUNFIG_PRELOAD });
-installedStart("second run, BUN_OPTIONS with a preload", { second: true, env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: ['echo \'console.error("BUN_OPTIONS preload ran")\' > "<ROOT>/pre.mjs"'] });
+installedStart("second run, BUN_OPTIONS with a preload", { second: true, env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: [`printf '%s\\n' '${IN_WTX}console.error("BUN_OPTIONS preload ran")' > "<ROOT>/pre.mjs"`] });
 installedStart("second run, NODE_ENV=production set in .env", { second: true, env: { TERMINAL_WS_PORT: null }, files: { ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n", ".env.production": "TERMINAL_WS_PORT=99998\n" } });
 // What bun does not apply on the launcher's run, so the binary hands it back.
 installedStart("first run, NODE_OPTIONS with a preload (bun does not read it)", { env: { NODE_OPTIONS: "--require <ROOT>/pre.cjs" }, setup: ['echo \'console.error("NODE_OPTIONS preload ran")\' > "<ROOT>/pre.cjs"'] });

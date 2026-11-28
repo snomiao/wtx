@@ -17,8 +17,8 @@
 // compared with: this checks it against the text it is meant to have.
 //
 // Each scenario installs the package afresh under a directory of its own, as
-// rs/parity/drive.mjs installs it for the "v-install" parity cases (an npm
-// layout: <dir>/inst/bin/wtx, the launcher), starts `wtx` there once with
+// the "v-install" parity cases do (rs/parity/install.mjs: an npm layout,
+// <dir>/inst/bin/wtx is the launcher), starts `wtx` there once with
 // TERMINAL_WS_PORT=99999 and TERMINAL_WS_HOST=192.0.2.1 (so that a server
 // started by mistake ends at Bun.serve), and checks
 //   - the exit code (1), stdout (empty), and stderr: what bun's preload
@@ -39,9 +39,8 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { install } from "./install.mjs";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 const dist = process.argv[2];
 if (!dist || !fs.existsSync(path.join(dist, "main"))) {
   console.error("usage: launcher.mjs <directory packed by rustify's pack.mjs>");
@@ -119,24 +118,15 @@ for (const [index, scenario] of scenarios.entries()) {
     TMPDIR: path.join(dir, "tmp"),
     TERMINAL_WS_PORT: "99999",
     TERMINAL_WS_HOST: "192.0.2.1",
-    // rs/parity/drive.mjs installs it and starts it with these streams.
-    PARITY_INSTALL: "1",
-    PARITY_DIRECT: "1",
-    PARITY_DIST: dist,
   };
   for (const [name, value] of Object.entries(scenario.env || {})) {
     if (value === null) delete env[name];
     else env[name] = value.replaceAll("<DIR>", dir);
   }
   const problems = [];
-  const first = spawnSync(process.execPath, [path.join(HERE, "drive.mjs"), "wtx-binary"], { cwd: path.join(dir, "cwd"), env, encoding: "utf8", timeout: 60000 });
-  const installedAt = path.join(dir, "inst", "lib", "node_modules", "@snomiao", "wtx");
-  if (!fs.existsSync(installedAt)) {
-    failures.push(scenario.name);
-    console.log(`  FAILED  ${scenario.name}\n    not installed: ${first.stderr}`);
-    continue;
-  }
-  const root = fs.realpathSync(installedAt);
+  const { command, pkg } = install({ prefix: path.join(dir, "inst"), side: "rs", dist });
+  const root = fs.realpathSync(pkg);
+  const first = runWtx(dir, command, env);
   const started = () => fs.existsSync(path.join(dir, "tmp", "koho-term-zshrc"));
   if (scenario.handedBack) {
     if (first.status !== 1 || !first.stderr.includes("is out of range")) problems.push(`it was not handed back: exit ${first.status}, stderr ${JSON.stringify(first.stderr)}`);
@@ -150,9 +140,7 @@ for (const [index, scenario] of scenarios.entries()) {
     }
     if (started()) problems.push("wtx.mjs started all the same (koho-term-zshrc)");
     // The run after it, from the same directory.
-    const again = { ...env, RUSTIFY_HANDBACK_TRACE: "1" };
-    for (const name of Object.keys(again)) if (name.startsWith("PARITY_")) delete again[name];
-    const second = runWtx(dir, path.join(dir, "inst", "bin", "wtx"), again);
+    const second = runWtx(dir, command, { ...env, RUSTIFY_HANDBACK_TRACE: "1" });
     if (scenario.inPlace === false) {
       if (second.status !== 1 || !second.stderr.endsWith(expected)) problems.push(`the run after it was not refused the same: exit ${second.status}, stderr ${JSON.stringify(second.stderr)}`);
       if (started()) problems.push("the run after it started wtx.mjs");

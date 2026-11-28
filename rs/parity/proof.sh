@@ -63,7 +63,9 @@ if command -v cygpath > /dev/null 2>&1; then
   binary=$(cygpath -m "$binary")
 fi
 cd "$(dirname "$0")/../.." || exit 1
-root=$(pwd -W 2> /dev/null || pwd)
+# The directory as the system spells it (pwd -P): the runner writes <REPO>
+# for that spelling, and the binary passes WTX_PACKAGE_ROOT on as it is.
+root=$(pwd -W 2> /dev/null || pwd -P)
 
 platform=${RUSTIFY_PLATFORM:-}
 if [ -z "$platform" ]; then
@@ -86,6 +88,16 @@ spelt() {
 }
 logs_for_node=$(spelt "$logs")
 node rs/parity/lanes.mjs rs/parity.json "$lanes" "$logs_for_node" || exit 1
+
+# rs/parity/drive.mjs runs on node. Where `node` is bun (a shim, as on one
+# Mac), bun would read the .env and bunfig.toml of each case's directory for
+# the driver itself, and the driver would pass the .env values on to the
+# server as real variables: so it runs there without them.
+driver="node rs/parity/drive.mjs"
+if node -e 'process.exit(process.versions.bun ? 0 : 1)'; then
+  : > "$logs/empty-bunfig.toml"
+  driver="bun --no-env-file --config=$logs_for_node/empty-bunfig.toml rs/parity/drive.mjs"
+fi
 
 # The package as the pipeline packs it, for the install cases (step 4).
 dist_env=""
@@ -134,9 +146,9 @@ run_in_dir() {
 lane() {
   lane_cases=$logs_for_node/lane-$1.json
   lane_code=0
-  run_in --cases "$lane_cases" --ts "env $dist_env node rs/parity/drive.mjs bun wtx.mjs" \
-    --rs "env WTX_PACKAGE_ROOT=$root $dist_env node rs/parity/drive.mjs $binary" || lane_code=1
-  run_in --cases "$lane_cases" --rs "env $dist_env node rs/parity/drive.mjs $binary" --handback WTX_PACKAGE_ROOT=wtx.mjs || lane_code=1
+  run_in --cases "$lane_cases" --ts "env $dist_env $driver bun wtx.mjs" \
+    --rs "env WTX_PACKAGE_ROOT=$root $dist_env $driver $binary" || lane_code=1
+  run_in --cases "$lane_cases" --rs "env $dist_env $driver $binary" --handback WTX_PACKAGE_ROOT=wtx.mjs || lane_code=1
   return $lane_code
 }
 runs=""
