@@ -37,11 +37,14 @@
 // Each run starts the server on 127.0.0.1 and a free port, creates one
 // session whose program writes its environment to a file (env, through
 // /bin/sh; on Windows node, writing process.env) and stays, waits for the
-// file and until the server has been quiet for a moment, asks GET /sessions
-// and GET /status/me/proj, stops the server, and keeps what it printed on
-// stdout and stderr, the HTTP answers, the session's environment, the
-// preloads' log, and the files in the working directory and in the temp
-// directory. Each must be what wtx.mjs run
+// file (on Windows also for ConPTY's first output in the session) and until
+// the server has been quiet for a moment, asks GET /sessions and GET
+// /status/me/proj, on Windows deletes the session and waits for its end in
+// the log (taskkill /T ends a session's program before the server, which
+// logged that end on some runs and not on others), stops the server, and
+// keeps what it printed on stdout and stderr, the HTTP answers, the
+// session's environment, the preloads' log, and the files in the working
+// directory and in the temp directory. Each must be what wtx.mjs run
 // directly gave, but for one thing on a run through the launcher: each
 // preload that ran in the launcher (its line says it ran in "wtx", the
 // launcher's file, not in "wtx.mjs") has printed its line and written its
@@ -536,22 +539,47 @@ async function serve(start, verbatim, scenario) {
     const program = isWindows ? [process.execPath, path.join(work, "dump-env.cjs"), dump] : ["/bin/sh", "-c", 'env > "$0.part" && mv "$0.part" "$0" && exec sleep 30', dump];
     await ask("POST", "/sessions/s", { cmd: program, cwd: sessionDir });
     if (!(await until(() => fs.existsSync(dump), 15000))) seen.push("(the session did not write its environment)");
-    // Then until the server's log and the session's buffer (on Windows,
-    // ConPTY's own sequences) have been quiet for half a second: bun writes
-    // its log to a pipe a moment later, and what it has not written yet is
-    // lost when it is stopped.
-    let last = "";
-    let since = Date.now();
-    await until(async () => {
-      let now = text("stdout") + text("stderr");
+    const sessions = async () => {
       try {
-        now += JSON.stringify((await (await fetch(`http://127.0.0.1:${port}/sessions`)).json()).map((s) => s.bufferBytes));
-      } catch {}
-      if (now !== last) [last, since] = [now, Date.now()];
-      return Date.now() - since >= 500;
-    }, 10000);
+        return await (await fetch(`http://127.0.0.1:${port}/sessions`)).json();
+      } catch {
+        return null;
+      }
+    };
+    // On Windows ConPTY writes sequences of its own into the session
+    // (16 bytes) at a time of its choosing, on a busy machine later than
+    // the program's file: they are waited for, so that GET /sessions shows
+    // them on every run (see rs/parity/drive.mjs, firstOutput).
+    if (isWindows && !(await until(async () => (await sessions())?.some((s) => s.key === "s" && (s.bufferBytes > 0 || s.exited)), 10000))) {
+      seen.push("(the session's buffer stayed empty)");
+    }
+    // Then until the server's log and the session's buffer have been quiet
+    // for half a second: bun writes its log to a pipe a moment later, and
+    // what it has not written yet is lost when it is stopped.
+    const quiet = async (withBuffer) => {
+      let last = "";
+      let since = Date.now();
+      await until(async () => {
+        const now = text("stdout") + text("stderr") + (withBuffer ? JSON.stringify((await sessions())?.map((s) => s.bufferBytes)) : "");
+        if (now !== last) [last, since] = [now, Date.now()];
+        return Date.now() - since >= 500;
+      }, 10000);
+    };
+    await quiet(true);
     await ask("GET", "/sessions");
     await ask("GET", "/status/me/proj");
+    // On Windows the server is stopped with taskkill /T /F, which ends the
+    // session's program first: the server then logged its end (`[term]
+    // session s PTY exited`) on some runs and not on others, before it was
+    // ended itself. So there the session is deleted first (the server kills
+    // its program and logs that at once), its line waited for, and the log
+    // until it is quiet, on every run alike. On Linux and macOS SIGTERM
+    // ends the server before the session's program.
+    if (isWindows) {
+      await ask("DELETE", "/sessions/s");
+      if (!(await until(() => text("stdout").includes("[term] session s PTY exited"), 10000))) seen.push("(the server did not log the end of the session)");
+      await quiet(false);
+    }
   } else seen.push("(it did not listen)");
   if (!ended) {
     if (isWindows) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" });
