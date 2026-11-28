@@ -470,7 +470,12 @@ async function firstOutput(body) {
 // server kills its program and logs that at once), and its line is waited
 // for, on both sides alike; the requests are not printed, the server's log
 // is. On Linux and macOS SIGTERM ends the server first, and a session's
-// program after it.
+// program after it. One race is left, which no case meets: a program that
+// ends by itself between the list and its DELETE is logged twice, since
+// wtx's DELETE kills even a session that has ended and bun-pty's kill()
+// fires onExit again for it (bun-pty 0.4.8 sets _closing in kill() only).
+// A Windows case whose program ends by itself waits for that end in its
+// steps, and every other program stays for 30 s.
 async function endSessions() {
   const running = (await listed())?.filter((s) => !s.exited).map((s) => s.key) ?? [];
   const exits = () => (stdoutText().match(/ PTY exited/g) || []).length;
