@@ -1,0 +1,1113 @@
+{
+ "env": {
+  "TZ": "UTC"
+ },
+ "cases": [
+  {
+   "name": "start: no arguments: it listens, with no sessions",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: --help starts the server like no arguments",
+   "args": [
+    "--help"
+   ],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: --version starts the server like no arguments",
+   "args": [
+    "--version"
+   ],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: any words start the server like no arguments",
+   "args": [
+    "serve",
+    "-p",
+    "1",
+    "--",
+    "x"
+   ],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: WTX_NO_NATIVE=1 changes nothing",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "WTX_NO_NATIVE": "1"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT out of range (bun's error, exit 1)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_PORT": "99999"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT negative",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_PORT": "-1"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT empty is NaN",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_PORT": ""
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT not a number",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_PORT": "port"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT with letters after the number (parseInt)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "TERMINAL_WS_PORT": "{PORT}abc"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT with white space and a sign before it",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "TERMINAL_WS_PORT": " \t+{PORT}"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_PORT with a fraction",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "TERMINAL_WS_PORT": "{PORT}.9"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: the port is in use",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"busy\":true}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_HOST an address this machine does not have",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_HOST": "192.0.2.1"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_HOST empty",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "TERMINAL_WS_HOST": ""
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_HOST 0.0.0.0",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
+    "TERMINAL_WS_HOST": "0.0.0.0"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: TERMINAL_WS_HOST not an address",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TERMINAL_WS_HOST": "not a host name"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: writes the zsh start-up files into the temp directory",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]"
+   },
+   "after": [
+    "cd \"$TMPDIR/koho-term-zshrc\" && for f in .zshenv .zprofile .zshrc; do echo \"== $f\"; cat \"$f\"; done; ls -A"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: rewrites start-up files that are there already",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]"
+   },
+   "setup": [
+    "mkdir -p \"$TMPDIR/koho-term-zshrc\" && echo old > \"$TMPDIR/koho-term-zshrc/.zshrc\" && echo keep > \"$TMPDIR/koho-term-zshrc/other\""
+   ],
+   "after": [
+    "cd \"$TMPDIR/koho-term-zshrc\" && for f in .zshenv .zprofile .zshrc; do echo \"== $f\"; cat \"$f\"; done; ls -A"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "start: the temp directory is a file (mkdir fails before it listens)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "TMPDIR": "<ROOT>/not-a-directory"
+   },
+   "setup": [
+    "echo x > \"<ROOT>/not-a-directory\""
+   ],
+   "skip": {
+    "win32": "bun on Windows takes its temp directory from TEMP, which the runner sets for every case; a TEMP it cannot use makes it hang"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: /sessions answers any method",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions\"},{\"http\":\"DELETE /sessions\"},{\"http\":\"PUT /sessions\"},{\"http\":\"GET /sessions?x=1\"},{\"http\":\"HEAD /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: other paths and methods want a WebSocket (426)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /\"},{\"http\":\"GET /nothing\"},{\"http\":\"GET /sessions/\"},{\"http\":\"GET //sessions\"},{\"http\":\"GET /sessions/k\"},{\"http\":\"PUT /sessions/k\"},{\"http\":\"PATCH /sessions/k\"},{\"http\":\"GET /sessions/k/input\"},{\"http\":\"POST /sessions/k/git\"},{\"http\":\"GET /sessions/k/other\"},{\"http\":\"GET /sessions%2Fk/buffer\"},{\"http\":\"GET /status/a\"},{\"http\":\"GET /status/a/b/c\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: the path is resolved as a URL (dot segments)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /x/../sessions\"},{\"http\":\"GET /./sessions\"},{\"http\":\"GET /sessions/k/../../sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: unknown session keys",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions/nope/buffer\"},{\"http\":\"GET /sessions/nope/git\"},{\"http\":\"POST /sessions/nope/input\",\"body\":\"x\"},{\"http\":\"DELETE /sessions/nope\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: a key that is not valid percent-encoding (bun's error page)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"DELETE /sessions/%ZZ\"},{\"http\":\"GET /sessions/%E0%A4%A/git\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: /summary without a cwd, and for a directory without a session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /summary\"},{\"http\":\"GET /summary?cwd=\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: /status without WTX_REPO_BASE",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /status/owner/repo\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "http: bun's error page in production (NODE_ENV)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":\"null\"},{\"http\":\"GET /sessions\"}]",
+    "NODE_ENV": "production"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: a session running a command, listed and read back",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/one\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"hello\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"one\",\"contains\":\"hello\"},{\"http\":\"GET /sessions/one/buffer\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: the key is URL-decoded, the buffer route takes it as written",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/a%20b\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"x\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"until\":\"log\",\"contains\":\"created session a b\"},{\"http\":\"GET /sessions/a%2520b/buffer\"},{\"http\":\"GET /sessions/a b/buffer\"},{\"http\":\"DELETE /sessions/a%2520b\"},{\"http\":\"GET /sessions/a%20b/buffer\"},{\"http\":\"DELETE /sessions/a%20b\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: a key with UTF-8",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/%C3%A9t%C3%A9\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"]}},{\"http\":\"GET /sessions\"},{\"http\":\"DELETE /sessions/%C3%A9t%C3%A9\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: replacing a session kills the old one",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"first\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"first\"},{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"second\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"second\"},{\"http\":\"GET /sessions/k/buffer\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: no body runs $SHELL in the server's directory",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/sh\"},{\"wait\":\"sh\",\"contains\":\"fake shell\"},{\"http\":\"GET /sessions/sh/buffer\"},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: a body that is not JSON counts as none",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/sh\",\"body\":\"hello\"},{\"wait\":\"sh\",\"contains\":\"fake shell\"},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: an empty cmd, or one that is not a list, runs $SHELL",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/a\",\"body\":{\"cmd\":[]}},{\"http\":\"POST /sessions/b\",\"body\":{\"cmd\":\"ls\"}},{\"http\":\"POST /sessions/c\",\"body\":[]},{\"http\":\"POST /sessions/d\",\"body\":7},{\"wait\":\"a\",\"contains\":\"fake shell\"},{\"wait\":\"b\",\"contains\":\"fake shell\"},{\"wait\":\"c\",\"contains\":\"fake shell\"},{\"wait\":\"d\",\"contains\":\"fake shell\"},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: without SHELL it runs bash",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/b\"}]",
+    "SHELL": null
+   },
+   "skip": {
+    "win32": "there is no bash on PATH for bun-pty on Windows"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: a body of null (bun's error page)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":\"null\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: a command that does not exist (bun's error page)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<ROOT>/no-such-program\"]}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cols and rows are clamped to 10 and 2",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cols\":3,\"rows\":1}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cols and rows as given",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); setTimeout(() => {}, 30000)\"],\"cols\":132,\"rows\":43}},{\"wait\":\"k\",\"contains\":\"\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cols and rows that are strings of digits",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cols\":\"100\",\"rows\":\"30\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cols and rows with a fraction",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); setTimeout(() => {}, 30000)\"],\"cols\":100.7,\"rows\":30.2}},{\"wait\":\"k\",\"contains\":\"\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cols that is not a number (bun's error page)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cols\":\"abc\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cwd that does not exist is made",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/made/here\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "after": [
+    "ls -R made"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cwd with backslashes",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(process.cwd() + '.'); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\\\\sub\"}},{\"wait\":\"k\",\"contains\":\"sub.\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "after": [
+    "ls"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cwd from WTX_DEFAULT_CWD",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(process.cwd() + '.'); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"dflt.\"},{\"http\":\"GET /sessions\"}]",
+    "WTX_DEFAULT_CWD": "<ROOT>/dflt"
+   },
+   "after": [
+    "ls \"<ROOT>/dflt\" > /dev/null && echo made"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cwd ending in /.. is taken",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/..\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "create: cwd refused (relative, /../, empty, 0)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"relative/dir\"}},{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/../x\"}},{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"\"}},{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":0}},{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"C:relative\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "input: a body is typed into the session, ?cr=1 adds a carriage return",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdin.on('data', (d) => process.stdout.write('got ' + Buffer.from(d).toString('hex') + '\\\\n')); process.stdout.write('ready\\\\n'); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"ready\\r\\n\"},{\"http\":\"POST /sessions/k/input\",\"body\":\"hello\"},{\"http\":\"POST /sessions/k/input?cr=1\",\"body\":\" world\"},{\"wait\":\"k\",\"contains\":\"0a\\r\\n\"},{\"http\":\"POST /sessions/k/input?cr=yes\",\"body\":\"x\"},{\"http\":\"POST /sessions/k/input\",\"body\":\"\\r\"},{\"wait\":\"k\",\"contains\":\"got 780a\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "input: bytes that are not UTF-8 arrive as U+FFFD",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdin.setRawMode(true); process.stdin.on('data', (d) => process.stdout.write('got ' + Buffer.from(d).toString('hex') + '\\\\n')); process.stdout.write('ready\\\\n'); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"ready\\r\\n\"},{\"http\":\"POST /sessions/k/input\",\"bodyHex\":\"61ff62c3\"},{\"wait\":\"k\",\"contains\":\"bd\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "delete: kills the session and forgets it",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"x\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"x\"},{\"http\":\"DELETE /sessions/k\"},{\"until\":\"log\",\"contains\":\"PTY exited\"},{\"http\":\"GET /sessions\"},{\"http\":\"DELETE /sessions/k\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "buffer: raw bytes, colours and CR LF",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"a\\\\x1b[31mred\\\\x1b[0m\\\\tb\\\\n\\\\u00e9\\\\u2500\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"─\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"},{\"http\":\"GET /sessions/k/buffer?strip=0\"},{\"http\":\"GET /sessions/k/buffer?tail=0\"},{\"http\":\"GET /sessions/k/buffer?tail=-3\"},{\"http\":\"GET /sessions/k/buffer?tail=abc\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "buffer: the screen as text (?strip=1, tail, offset)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"one\\\\ntwo \\\\x1b[1mbold\\\\x1b[0m\\\\nabc\\\\rX\\\\nfour   \\\\n\\\\n\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"four   \\r\\n\\r\\n\\r\\n\"},{\"http\":\"GET /sessions/k/buffer?strip=1\"},{\"http\":\"GET /sessions/k/buffer?tail=2\"},{\"http\":\"GET /sessions/k/buffer?tail=2x\"},{\"http\":\"GET /sessions/k/buffer?offset=1\"},{\"http\":\"GET /sessions/k/buffer?tail=1&offset=2\"},{\"http\":\"GET /sessions/k/buffer?offset=99\"},{\"http\":\"GET /sessions/k/buffer?strip=1&tail=99\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "buffer: a line longer than the terminal wraps on the screen",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"0123456789abcdefghij\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cols\":10,\"rows\":5}},{\"wait\":\"k\",\"contains\":\"j\\r\\n\"},{\"http\":\"GET /sessions/k/buffer?strip=1\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: a clean repository",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q -b main repo",
+    "cd repo && echo a > a && echo b > b && git add a b && git commit -q -m one"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: staged, changed and untracked files",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q -b main repo",
+    "cd repo && echo a > a && echo b > b && git add a b && git commit -q -m one",
+    "cd repo && echo new > c && git add c && echo more >> b && echo u > untracked"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: a file changed only in the worktree, first in the list",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q -b main repo",
+    "cd repo && echo a > a && echo b > b && git add a b && git commit -q -m one",
+    "cd repo && echo more >> a"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: a deleted file and a rename",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q -b main repo",
+    "cd repo && echo a > a && echo b > b && git add a b && git commit -q -m one",
+    "cd repo && git rm -q b && git mv a moved"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: not a repository",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: ahead of and behind its upstream",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q --bare -b main store.git",
+    "git clone -q store.git repo 2> /dev/null && cd repo && echo a > a && git add a && git commit -q -m one && git push -q -u origin main 2> /dev/null",
+    "git clone -q store.git other 2> /dev/null && cd other && echo o > o && git add o && git commit -q -m theirs && git push -q origin main 2> /dev/null",
+    "cd repo && echo m > m && git add m && git commit -q -m mine && git commit -q --allow-empty -m mine2 && git fetch -q"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "git: a detached HEAD",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/g\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/repo\"}},{\"http\":\"GET /sessions/g/git\"}]",
+    "GIT_CEILING_DIRECTORIES": "<ROOT>",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "p",
+    "GIT_AUTHOR_EMAIL": "p@example.test",
+    "GIT_COMMITTER_NAME": "p",
+    "GIT_COMMITTER_EMAIL": "p@example.test",
+    "GIT_AUTHOR_DATE": "2026-01-01T00:00:00Z",
+    "GIT_COMMITTER_DATE": "2026-01-01T00:00:00Z"
+   },
+   "setup": [
+    "git init -q -b main repo",
+    "cd repo && echo a > a && echo b > b && git add a b && git commit -q -m one",
+    "cd repo && git checkout -q --detach"
+   ],
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: the last line asks a question",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"⏺ Shall I go on?§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: a recap line",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"※ recap: all done (disable recaps in /config)§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: running, esc to interrupt",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"✻ Thinking… (esc to interrupt)§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: time worked",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"✻ Worked for 2m 5s§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: an error line",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"Error: it failed§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: only the last line counts",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"⏺ Shall I go on?\\\\nplain§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: a session in a directory below",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"x§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/below\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "summary: a directory that only starts like the session's",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"x§\\\\n\\\"); setTimeout(() => {}, 30000)\"],\"cwd\":\"<CWD>/below\"}},{\"wait\":\"k\",\"contains\":\"§\"},{\"http\":\"GET /summary?cwd=<CWD>/bel\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "status: active, closed, and a repository whose name only starts the same",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<ROOT>/repos/me/proj/sub\"}},{\"http\":\"GET /status/me/proj\"},{\"http\":\"GET /status/me/pro\"},{\"http\":\"GET /status/me/other\"},{\"http\":\"GET /status/me/proj%20x\"}]",
+    "WTX_REPO_BASE": "<ROOT>/repos"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "status: WTX_REPO_BASE from .env in the working directory (bun loads it)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"],\"cwd\":\"<ROOT>/repos/me/proj\"}},{\"http\":\"GET /status/me/proj\"}]"
+   },
+   "files": {
+    ".env": "WTX_REPO_BASE=<ROOT>/repos\n"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "status: .env.local and the variable itself, which wins",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /status/me/proj\"}]",
+    "WTX_REPO_BASE": ""
+   },
+   "files": {
+    ".env.local": "WTX_REPO_BASE=<ROOT>/from-file\n"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "access: with a key, a client from another address needs it",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\",\"from\":\"127.0.0.2\"},{\"http\":\"GET /sessions\",\"from\":\"127.0.0.2\",\"headers\":{\"Authorization\":\"Bearer sekrit\"}},{\"http\":\"GET /sessions?key=sekrit\",\"from\":\"127.0.0.2\"},{\"http\":\"GET /sessions?key=wrong\",\"from\":\"127.0.0.2\"},{\"http\":\"GET /sessions?key=sekrit\",\"from\":\"127.0.0.2\",\"headers\":{\"Authorization\":\"Bearer wrong\"}},{\"http\":\"GET /sessions?key=sekrit\",\"from\":\"127.0.0.2\",\"headers\":{\"Authorization\":\"bearer sekrit\"}},{\"http\":\"GET /sessions\",\"from\":\"127.0.0.2\",\"headers\":{\"Authorization\":\"Basic sekrit\"}},{\"http\":\"GET /sessions\"},{\"http\":\"GET /nothing\",\"from\":\"127.0.0.2\"}]",
+    "TERMINAL_ACCESS_KEY": "sekrit"
+   },
+   "skip": {
+    "darwin": "macOS has no loopback address but 127.0.0.1 (a client from anywhere else needs a network)"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "access: without a key nothing is checked",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\",\"from\":\"127.0.0.2\"}]"
+   },
+   "skip": {
+    "darwin": "macOS has no loopback address but 127.0.0.1 (a client from anywhere else needs a network)"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "access: the key from .env",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"GET /sessions\",\"from\":\"127.0.0.2\"},{\"http\":\"GET /sessions?key=from-file\",\"from\":\"127.0.0.2\"}]"
+   },
+   "files": {
+    ".env": "TERMINAL_ACCESS_KEY=from-file\n"
+   },
+   "skip": {
+    "darwin": "macOS has no loopback address but 127.0.0.1 (a client from anywhere else needs a network)"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "access: a WebSocket from another address without the key",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?session=x\",\"from\":\"127.0.0.2\"},{\"ws\":\"?session=x&key=sekrit\",\"name\":\"b\",\"from\":\"127.0.0.2\"},{\"recv\":\"b\",\"until\":\"close\"}]",
+    "TERMINAL_ACCESS_KEY": "sekrit"
+   },
+   "skip": {
+    "darwin": "macOS has no loopback address but 127.0.0.1 (a client from anywhere else needs a network)"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: attach by directory starts $SHELL there",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: a second client gets the replay",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}},{\"ws\":\"?cwd=<CWD>\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"b\",\"until\":{\"quiet\":300}},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: refused directories (missing, relative, /../)",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"\"},{\"recv\":\"a\",\"until\":\"close\"},{\"ws\":\"?cwd=\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":\"close\"},{\"ws\":\"?cwd=rel\",\"name\":\"c\"},{\"recv\":\"c\",\"until\":\"close\"},{\"ws\":\"?cwd=<CWD>/../x\",\"name\":\"d\"},{\"recv\":\"d\",\"until\":\"close\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: a directory that does not exist is made",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>/new/dir\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "after": [
+    "ls -R new"
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: any path takes a WebSocket",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>\",\"name\":\"a\",\"path\":\"/some/where\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: an unknown session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?session=nope\"},{\"recv\":\"a\",\"until\":\"close\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: an empty session name attaches by directory",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?session=&cwd=<CWD>\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: attach to a named session, whatever its directory",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"named\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"named\\r\\n\"},{\"ws\":\"?session=k&cwd=rel\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":300}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: cols and rows from the query, clamped",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>&cols=4&rows=1\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}},{\"send\":\"a\",\"text\":\"size\\r\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 2 10\"}},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: cols that is not a number ends the server",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>&cols=abc\"},{\"recv\":\"a\",\"until\":\"close\",\"timeout\":3000}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: ping with and without t",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"]}},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":200}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"ping\\\",\\\"t\\\":42}\"},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"ping\\\",\\\"t\\\":\\\"x\\\",\\\"more\\\":1}\"},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"ping\\\",\\\"t\\\":null}\"},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"ping\\\",\\\"t\\\":[1.50,{\\\"b\\\":1,\\\"a\\\":2}]}\"},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"ping\\\"}\"},{\"recv\":\"a\",\"until\":{\"quiet\":300}}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: text, JSON of other types and binary frames are typed into the session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdin.setRawMode(true); process.stdin.on('data', (d) => process.stdout.write('got ' + Buffer.from(d).toString('hex') + '\\\\n')); process.stdout.write('ready\\\\n'); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"ready\\r\\n\"},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":200}},{\"send\":\"a\",\"text\":\"abc\"},{\"recv\":\"a\",\"until\":{\"text\":\"got 616263\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"other\\\"}\"},{\"recv\":\"a\",\"until\":{\"text\":\"7d\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":0,\\\"rows\\\":5}\"},{\"recv\":\"a\",\"until\":{\"text\":\"7d\\r\\n\"}},{\"send\":\"a\",\"binary\":\"xyz\"},{\"recv\":\"a\",\"until\":{\"text\":\"got 78797a\\r\\n\"}},{\"send\":\"a\",\"hex\":\"61ff62\"},{\"recv\":\"a\",\"until\":{\"text\":\"62\\r\\n\"}},{\"send\":\"a\",\"text\":\"not json {\"},{\"recv\":\"a\",\"until\":{\"text\":\"7b\\r\\n\"}}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: closing a client leaves the session running",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"]}},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"close\":\"a\"},{\"until\":\"log\",\"contains\":\"disconnected\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "ws: output reaches every client, after the replay",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdin.on('data', (d) => process.stdout.write('got ' + Buffer.from(d).toString('hex') + '\\\\n')); process.stdout.write('ready\\\\n'); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"ready\\r\\n\"},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"ws\":\"?session=k\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":200}},{\"recv\":\"b\",\"until\":{\"quiet\":200}},{\"http\":\"POST /sessions/k/input?cr=1\",\"body\":\"hi\"},{\"recv\":\"a\",\"until\":{\"text\":\"0a\\r\\n\"}},{\"recv\":\"b\",\"until\":{\"text\":\"0a\\r\\n\"}}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "size: the smallest of the clients, told to each",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"],\"cols\":120,\"rows\":40}},{\"wait\":\"k\",\"contains\":\"size 120x40\\r\\n\"},{\"ws\":\"?session=k&cols=100&rows=50\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"type\":\"size\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x50\\r\\n\"}},{\"ws\":\"?session=k&cols=150&rows=30\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"b\",\"until\":{\"type\":\"size\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"recv\":\"b\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "size: resize messages, clamped and floored; the last client's size stays",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"size 80x24\\r\\n\"},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"type\":\"size\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":\\\"90\\\",\\\"rows\\\":20.9}\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 90x20\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":1,\\\"rows\\\":1}\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 10x2\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":\\\"x\\\",\\\"rows\\\":5}\"},{\"recv\":\"a\",\"until\":{\"quiet\":300}},{\"close\":\"a\"},{\"until\":\"log\",\"contains\":\"disconnected\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "size: a client leaving lets the others grow",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"size 80x24\\r\\n\"},{\"ws\":\"?session=k&cols=100&rows=30\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"ws\":\"?session=k&cols=60&rows=20\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 60x20\\r\\n\"}},{\"recv\":\"b\",\"until\":{\"text\":\"size 60x20\\r\\n\"}},{\"close\":\"b\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "osc7: a shell reporting its directory moves the session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}},{\"send\":\"a\",\"text\":\"osc7 /some/where\\r\"},{\"recv\":\"a\",\"until\":{\"type\":\"cwd\"}},{\"send\":\"a\",\"text\":\"osc7 /some/where\\r\"},{\"recv\":\"a\",\"until\":{\"text\":\"where\\u0007\"}},{\"send\":\"a\",\"text\":\"osc7st /p%C3%A4th%20x\\r\"},{\"recv\":\"a\",\"until\":{\"type\":\"cwd\"}},{\"send\":\"a\",\"text\":\"osc7 /bad%E0\\r\"},{\"recv\":\"a\",\"until\":{\"type\":\"cwd\"}},{\"http\":\"GET /sessions\"},{\"http\":\"GET /summary?cwd=/some\"},{\"http\":\"GET /summary?cwd=/bad%25E0\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "osc7: of two in one chunk, only the first counts",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"\\\\x1b]7;file://h/one\\\\x07\\\\x1b]7;file://h/two\\\\x07.\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\".\\r\\n\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "osc7: an OSC 7 without a path, or not ended, moves nothing",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdout.write(\\\"\\\\x1b]7;file://host\\\\x07\\\\x1b]7;file://host/x\\\\n\\\"); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"/x\\r\\n\"},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "query: device attributes and cursor position are answered by the server",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"process.stdin.setRawMode(true); let got = ''; process.stdin.on('data', (d) => { got += Buffer.from(d).toString('hex') }); setTimeout(() => process.stdout.write('\\\\x1b[c'), 100); setTimeout(() => process.stdout.write('\\\\x1b[6n'), 400); setTimeout(() => process.stdout.write('\\\\x1b[0c\\\\x1b[6n'), 700); setTimeout(() => process.stdout.write('answers ' + got + '\\\\n'), 1200); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "exit: a session that ends says so, and stays listed",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"console.log('bye')\"]}},{\"until\":\"log\",\"contains\":\"PTY exited\"},{\"http\":\"GET /sessions/k/buffer\"},{\"http\":\"GET /sessions\"},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":300}},{\"http\":\"DELETE /sessions/k\"},{\"recv\":\"a\",\"until\":{\"quiet\":300}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "exit: attaching by directory to a session that ended starts a new one",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"fake shell\"}},{\"send\":\"a\",\"text\":\"exit\\r\"},{\"recv\":\"a\",\"until\":{\"text\":\"[session ended]\\u001b[0m\\r\\n\"}},{\"ws\":\"?cwd=<CWD>\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"b\",\"until\":{\"text\":\"fake shell\"}},{\"http\":\"GET /sessions\"}]",
+    "SHELL": "<ROOT>/fake-shell"
+   },
+   "setup": [
+    "cp \"<REPO>/rs/parity/fake-shell.sh\" \"<ROOT>/fake-shell\" && chmod +x \"<ROOT>/fake-shell\""
+   ],
+   "skip": {
+    "win32": "$SHELL is a #! script, which Windows does not start"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "exit: deleting a session tells its clients",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"void 0; setTimeout(() => {}, 30000)\"]}},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"quiet\":200}},{\"http\":\"DELETE /sessions/k\"},{\"recv\":\"a\",\"until\":{\"text\":\"[session ended]\\u001b[0m\\r\\n\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "env: every variable of the server reaches a session, wtx's own on top",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "OPENAI_API_KEY": "dummy-secret",
+    "AWS_SECRET_ACCESS_KEY": "dummy",
+    "TERMINAL_ACCESS_KEY": "dummy-key",
+    "MY_TOKEN": "x",
+    "EDITOR": "vi",
+    "LC_PARITY": "ok",
+    "XDG_PARITY": "ok",
+    "GIT_PARITY": "ok",
+    "SSH_PARITY": "ok",
+    "TERMINFO_DIRS": "ok",
+    "GH_TOKEN": "passes",
+    "TERM": "dumb",
+    "COLORTERM": "no",
+    "HOST": "elsewhere",
+    "LANG": "fr_FR.UTF-8",
+    "PROMPT_COMMAND": "echo mine",
+    "ZDOTDIR": "<ROOT>/zdot",
+    "lc_lower": "dropped"
+   },
+   "skip": {
+    "win32": "there is no /bin/sh for bun-pty to start on Windows"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "env: what bun loads from .env reaches a session too",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+   },
+   "files": {
+    ".env": "PARITY_SECRET=from-env-file\nLC_FROM_FILE=passes\n"
+   },
+   "skip": {
+    "win32": "there is no /bin/sh for bun-pty to start on Windows"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "env: PROMPT_COMMAND without one of the server's",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PROMPT_COMMAND": null
+   },
+   "skip": {
+    "win32": "there is no /bin/sh for bun-pty to start on Windows"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  }
+ ]
+}
