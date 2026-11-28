@@ -8,7 +8,11 @@
 //! `#!` line is started as the system starts it, and only so; on Windows the
 //! runtimes are looked up on PATH with PATHEXT, `bun.cmd` included, and
 //! arguments a batch file cannot take are said to be so; `ROOT_ENV` is taken
-//! out of the JavaScript's environment when it names this package.)
+//! out of the JavaScript's environment when it names this package. Also v6:
+//! on Windows the runtimes are those the package managers' shims start: the
+//! one the `#!` line names and no other, but bun after node, so an entry
+//! whose line names bun never goes to node; a missing runtime is named, with
+//! exit code 1.)
 //!
 //! For the time when the Rust binary is already the command users run but some
 //! commands still exist only in the package's JavaScript. The binary handles
@@ -128,12 +132,15 @@ pub fn package_root() -> Option<PathBuf> {
 /// exit code (127), as when the command was the script itself. An entry
 /// without such a line goes to bun, and to node when bun cannot be started
 /// and the entry is not TypeScript. On Windows, where nothing but the package
-/// managers' command shims reads the `#!` line, the runtime that line names
-/// comes first, then bun, then node (not for TypeScript), each looked up in
-/// the directories of PATH with the extensions of PATHEXT that a program can
-/// be started from (see `find_program`; unlike a command prompt, not in the
+/// managers' command shims reads the `#!` line, the entry is started as they
+/// start it (see `runtimes`): with the runtime that line names, and with bun
+/// where that is node and node is missing. Each is looked up in the
+/// directories of PATH with the extensions of PATHEXT that a program can be
+/// started from (see `find_program`; unlike a command prompt, not in the
 /// working directory first): that finds `bun.exe`, and the `bun.cmd` that
-/// `npm i -g bun` writes.
+/// `npm i -g bun` writes. When none can be started, the binary says which
+/// and exits 1, as npm's shim does from a command prompt (see
+/// `missing_runtime`).
 pub fn run(entry: &str) -> ! {
     if tracing() {
         // A closed stderr must not stop the hand-back.
@@ -189,11 +196,14 @@ pub fn run(entry: &str) -> ! {
         stay_alive_on_ctrl_c();
         let path = std::env::var_os("PATH").unwrap_or_default();
         let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| DEFAULT_PATHEXT.to_string());
-        let candidates = runtimes(&script);
-        let mut last_error = None;
+        let line = interpreter(&first_line(&read_head(&script)));
+        let named = line.is_some();
+        let candidates = runtimes(&script, line);
+        // For each runtime tried: None when it is not on PATH.
+        let mut outcomes: Vec<(&str, Option<std::io::Error>)> = Vec::new();
         for runtime in &candidates {
             let Some(program) = find_program(&runtime[0], std::env::split_paths(&path), &pathext, |file| file.is_file()) else {
-                last_error = Some(std::io::Error::from(std::io::ErrorKind::NotFound));
+                outcomes.push((&runtime[0], None));
                 continue;
             };
             let words: Vec<OsString> = runtime[1..].iter().map(OsString::from).collect();
@@ -210,11 +220,11 @@ pub fn run(entry: &str) -> ! {
                     );
                     std::process::exit(127);
                 }
-                Err(error) => last_error = Some(error),
+                Err(error) => outcomes.push((&runtime[0], Some(error))),
             }
         }
-        let names: Vec<&str> = candidates.iter().map(|c| c[0].as_str()).collect();
-        not_started(&script, &names, last_error);
+        eprintln!("{}", missing_runtime(&script, named, &outcomes));
+        std::process::exit(1);
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -230,7 +240,9 @@ pub fn run(entry: &str) -> ! {
     }
 }
 
-/// Says that none of `tried` could be started, and ends the process.
+/// Says that none of `tried` could be started, and ends the process (see
+/// `missing_runtime` for Windows).
+#[cfg_attr(windows, allow(dead_code))]
 fn not_started(script: &std::path::Path, tried: &[&str], error: Option<std::io::Error>) -> ! {
     let reason = error.map(|e| e.to_string()).unwrap_or_default();
     if tried == ["bun"] {
@@ -404,12 +416,11 @@ fn fallbacks(script: &std::path::Path) -> &'static [&'static str] {
 }
 
 /// The most of a file that Linux (256 bytes, since Linux 5.1) or macOS (512)
-/// reads for its `#!` line.
-#[allow(dead_code)] // unused on Windows
+/// reads for its `#!` line, and that the Windows shims are read for here.
 const SHEBANG_MAX: usize = 512;
 
 /// The first bytes of `script`: as many as a system reads for a `#!` line.
-#[allow(dead_code)] // unused on Windows
+#[allow(dead_code)] // unused where neither Unix nor Windows
 fn read_head(script: &std::path::Path) -> Vec<u8> {
     use std::io::Read;
     let mut head = Vec::new();
@@ -535,21 +546,71 @@ fn shebang(head: &[u8], split: bool) -> Shebang {
     Shebang::Command(words)
 }
 
-/// The commands to try for running `script` on Windows, in order: what the
-/// script's own `#!` line names, as the package managers' shims read it
-/// (one of them started the script before this binary existed), then bun
-/// and node (see `fallbacks`).
+/// The commands to try for running `script` on Windows, in order, as the
+/// package managers' shims run it (one of them started the script before
+/// this binary existed). `line` is what its `#!` line names (see
+/// `interpreter`). Measured on Windows 11 with npm 11 and bun 1.4.2: both
+/// start what the line names and nothing else, except that bun's shim starts
+/// bun when the line names node and node is not on PATH. So a line naming
+/// bun gets bun only, never node; one naming node gets node, then bun; any
+/// other gets what it names. Without a `#!` line: bun, then node unless the
+/// entry is TypeScript (see `fallbacks`).
 #[allow(dead_code)] // used on Windows, tested everywhere
-fn runtimes(script: &std::path::Path) -> Vec<Vec<String>> {
-    let head = std::fs::read(script).unwrap_or_default();
-    let first_line = String::from_utf8_lossy(&head[..head.len().min(512)]).lines().next().unwrap_or("").to_string();
-    let mut list: Vec<Vec<String>> = interpreter(&first_line).into_iter().collect();
-    for name in fallbacks(script) {
-        if !list.iter().any(|c| c[0] == *name) {
-            list.push(vec![name.to_string()]);
+fn runtimes(script: &std::path::Path, line: Option<Vec<String>>) -> Vec<Vec<String>> {
+    match line {
+        Some(command) => {
+            let node = command[0] == "node";
+            let mut list = vec![command];
+            if node {
+                list.push(vec!["bun".to_string()]);
+            }
+            list
         }
+        None => fallbacks(script).iter().map(|name| vec![name.to_string()]).collect(),
     }
-    list
+}
+
+/// The first line of a file's first bytes, as text.
+#[allow(dead_code)] // used on Windows, tested everywhere
+fn first_line(head: &[u8]) -> String {
+    String::from_utf8_lossy(&head[..head.len().min(SHEBANG_MAX)]).lines().next().unwrap_or("").to_string()
+}
+
+/// What the binary says on Windows when no runtime for `script` could be
+/// started: `named` when its `#!` line names the first of them, and for each
+/// one tried, the error that kept it from starting, or None where it was not
+/// on PATH. The shims say it in their own words: npm's `.cmd` lets cmd.exe
+/// say `'"bun"' is not recognized as an internal or external command,` and
+/// exits 1; bun's says `error: bun is not installed in %PATH%` and exits 255;
+/// npm's `.ps1` reports a CommandNotFoundException and exits 0, its sh script
+/// (Git Bash) says `exec: bun: not found` and exits 127. The binary names the
+/// runtime and the entry, and exits 1, as the command prompt's shim does.
+#[allow(dead_code)] // used on Windows, tested everywhere
+fn missing_runtime(script: &std::path::Path, named: bool, outcomes: &[(&str, Option<std::io::Error>)]) -> String {
+    let names: Vec<&str> = outcomes.iter().map(|(name, _)| *name).collect();
+    let what = match (named, names.as_slice()) {
+        (true, [first, ..]) => format!("its #! line names {first}; "),
+        (false, ["bun"]) => "it needs bun; ".to_string(),
+        _ => String::new(),
+    };
+    let reasons = if outcomes.iter().all(|(_, error)| error.is_none()) {
+        match names.as_slice() {
+            [one] => format!("{one} was not found in PATH"),
+            [a, b] => format!("neither {a} nor {b} was found in PATH"),
+            all => format!("none of {} was found in PATH", all.join(", ")),
+        }
+    } else {
+        let each: Vec<String> = outcomes
+            .iter()
+            .map(|(name, error)| match error {
+                None => format!("{name} was not found in PATH"),
+                Some(error) => format!("{name} could not be started ({error})"),
+            })
+            .collect();
+        each.join(", and ")
+    };
+    let hint = if names == ["bun"] { ". See https://bun.sh" } else { "" };
+    format!("cannot run {}: {what}{reasons}{hint}", script.display())
 }
 
 /// The command a `#!` line asks for, without its directory, as the package
@@ -638,7 +699,7 @@ mod tests {
     use super::*;
 
     fn names(script: &std::path::Path) -> Vec<String> {
-        runtimes(script).into_iter().map(|c| c.join(" ")).collect()
+        runtimes(script, interpreter(&first_line(&read_head(script)))).into_iter().map(|c| c.join(" ")).collect()
     }
 
     /// The `#!` line as Linux (one argument) and macOS (split at blanks, `#`
@@ -875,7 +936,9 @@ mod tests {
         assert_eq!(reported(), expected);
     }
 
-    /// On Windows: what the `#!` line names, then bun, then node (not for TypeScript).
+    /// On Windows, as the shims start the entry: what the `#!` line names and
+    /// nothing else, but bun after node; without a line, bun, then node (not
+    /// for TypeScript).
     #[test]
     fn the_script_decides_which_runtime_is_tried_first() {
         let dir = std::env::temp_dir().join(format!("rustify-fallback-{}", std::process::id()));
@@ -886,15 +949,34 @@ mod tests {
             path
         };
         assert_eq!(names(&file("a.js", "#!/usr/bin/env node\nx")), ["node", "bun"]);
-        assert_eq!(names(&file("b.js", "#!/usr/bin/env bun\nx")), ["bun", "node"]);
+        // A line naming bun never goes to node, whatever the file is.
+        assert_eq!(names(&file("b.js", "#!/usr/bin/env bun\nx")), ["bun"]);
+        assert_eq!(names(&file("b.mjs", "#!/usr/bin/env bun\r\nimport x from \"./src/server\";\r\n")), ["bun"]);
+        assert_eq!(names(&file("b2.js", "#!/usr/bin/env -S bun --smol\nx")), ["bun --smol"]);
         assert_eq!(names(&file("c.js", "console.log(1)")), ["bun", "node"]);
         assert_eq!(names(&file("d.ts", "#!/usr/bin/env bun\nx")), ["bun"]);
-        assert_eq!(names(&file("e.ts", "#!/usr/bin/env npx tsx\nx")), ["npx tsx", "bun"]);
+        assert_eq!(names(&file("e.ts", "#!/usr/bin/env npx tsx\nx")), ["npx tsx"]);
+        assert_eq!(names(&file("e.js", "#!/usr/bin/env tsx\nx")), ["tsx"]);
         assert_eq!(names(&file("f.ts", "#!/usr/bin/env node\nx")), ["node", "bun"]);
         assert_eq!(names(&dir.join("missing.js")), ["bun", "node"]);
         // Without a `#!` line, everywhere: bun, then node unless it is TypeScript.
         assert_eq!(fallbacks(&dir.join("g.js")), ["bun", "node"]);
         assert_eq!(fallbacks(&dir.join("h.mts")), ["bun"]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// What a Windows user reads when no runtime could be started.
+    #[test]
+    fn a_missing_runtime_is_named() {
+        let script = std::path::Path::new("C:\\pkg\\wtx.mjs");
+        let missing = |names: &[&'static str]| names.iter().map(|n| (*n, None)).collect::<Vec<_>>();
+        assert_eq!(missing_runtime(script, true, &missing(&["bun"])), "cannot run C:\\pkg\\wtx.mjs: its #! line names bun; bun was not found in PATH. See https://bun.sh");
+        assert_eq!(missing_runtime(script, true, &missing(&["node", "bun"])), "cannot run C:\\pkg\\wtx.mjs: its #! line names node; neither node nor bun was found in PATH");
+        assert_eq!(missing_runtime(script, true, &missing(&["npx"])), "cannot run C:\\pkg\\wtx.mjs: its #! line names npx; npx was not found in PATH");
+        assert_eq!(missing_runtime(script, false, &missing(&["bun", "node"])), "cannot run C:\\pkg\\wtx.mjs: neither bun nor node was found in PATH");
+        assert_eq!(missing_runtime(script, false, &missing(&["bun"])), "cannot run C:\\pkg\\wtx.mjs: it needs bun; bun was not found in PATH. See https://bun.sh");
+        let failed = [("node", Some(std::io::Error::from(std::io::ErrorKind::PermissionDenied))), ("bun", None)];
+        let text = missing_runtime(script, true, &failed);
+        assert!(text.starts_with("cannot run C:\\pkg\\wtx.mjs: its #! line names node; node could not be started (") && text.ends_with("), and bun was not found in PATH"), "{text}");
     }
 }
