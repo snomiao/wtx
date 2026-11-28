@@ -68,12 +68,47 @@
 // In any string of a step, <BUN> stands for the bun on PATH and {PORT} for
 // the port; in the server's variables too, and {SECRET} for a random key
 // made for this run (printed as <SECRET>).
+//
+// How the server is started, by variables of the case (none reaches it):
+//   PARITY_DIRECT=1     with this script's own stdin, stdout and stderr (a
+//                       terminal, when the case gives one), no steps, and
+//                       this script exits as the server did: for start-ups
+//                       that end before the server listens.
+//   PARITY_AS_SCRIPT=1  `bun <script>` becomes the script itself (not on
+//                       Windows), which the system starts through its `#!`
+//                       line, as it starts wtx.mjs where npm installed it:
+//                       then `env` looks for bun on PATH.
+//   PARITY_INSTALL=1    the command is installed first, as `npm i -g` would
+//                       install it under <ROOT>/inst, and started as
+//                       <ROOT>/inst/bin/wtx: `bun wtx.mjs` as the published
+//                       package 0.3.4 has it (bin/wtx is wtx.mjs), the
+//                       binary as the package the pipeline packs (bin/wtx is
+//                       rustify's launcher, which starts the binary), from
+//                       the packed directory that PARITY_DIST names (set by
+//                       rs/parity/proof.sh in front of this script). Both
+//                       take node_modules from this checkout. So the first
+//                       run goes through the launcher; with
+//                       PARITY_INSTALL_RUNS=2 the launcher has run once
+//                       before (in a directory and with a temp directory of
+//                       its own, its output dropped), so the binary is in
+//                       its place. WTX_PACKAGE_ROOT, which the runner sets
+//                       to point the binary at a package, is not passed on:
+//                       the launcher sets its own. When it names a package
+//                       other than this checkout (the --handback check's
+//                       stand-in), that package's wtx.mjs is installed.
+//   PARITY_WTX_PACKAGE_ROOT  becomes WTX_PACKAGE_ROOT for the server, as a
+//                       user's own variable of that name would be.
+//   PARITY_PATH         the server's PATH ({PATH} in it stands for this
+//                       script's own), and PARITY_PATH_UNSET=1 none at all;
+//                       the runner, its setup and after lines, and this
+//                       script keep theirs.
 
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const isWindows = process.platform === "win32";
 const [program, ...programArgs] = process.argv.slice(2);
@@ -184,8 +219,81 @@ function shown(bytes) {
 
 const env = { ...process.env };
 for (const name of Object.keys(env)) if (name.startsWith("PARITY_")) delete env[name];
-if (env.TERMINAL_WS_PORT === undefined) env.TERMINAL_WS_PORT = String(port);
+// (Not for a start-up with the runner's streams, PARITY_DIRECT: such a case
+// reads the port from where it says, or the server's default.)
+if (env.TERMINAL_WS_PORT === undefined && process.env.PARITY_DIRECT !== "1") env.TERMINAL_WS_PORT = String(port);
 for (const name of Object.keys(env)) env[name] = fill(env[name]);
+
+// ── how the server is started ───────────────────────────────────────────────
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+// `bun wtx.mjs` is the TypeScript's side; anything else is the binary.
+const bunSide = path.basename(program).replace(/\.exe$/i, "").toLowerCase() === "bun";
+let command = program;
+let commandArgs = programArgs;
+if (process.env.PARITY_AS_SCRIPT === "1" && bunSide && !isWindows) {
+  command = path.resolve(programArgs[0]);
+  commandArgs = programArgs.slice(1);
+}
+if (process.env.PARITY_INSTALL === "1") {
+  const inst = path.join(path.dirname(process.cwd()), "inst");
+  const scope = path.join(inst, "lib", "node_modules", "@snomiao");
+  const pkg = path.join(scope, "wtx");
+  const given = env.WTX_PACKAGE_ROOT;
+  delete env.WTX_PACKAGE_ROOT;
+  fs.mkdirSync(path.join(inst, "bin"), { recursive: true });
+  if (bunSide) {
+    // @snomiao/wtx 0.3.4 as published: the command is wtx.mjs.
+    fs.mkdirSync(pkg, { recursive: true });
+    for (const file of ["wtx.mjs", "package.json", "src"]) fs.cpSync(path.join(REPO, file), path.join(pkg, file), { recursive: true });
+    fs.chmodSync(path.join(pkg, "wtx.mjs"), 0o755);
+    fs.symlinkSync("../lib/node_modules/@snomiao/wtx/wtx.mjs", path.join(inst, "bin", "wtx"));
+  } else {
+    // The packed package: the command is the launcher, the binary is in the
+    // platform package beside it.
+    const dist = process.env.PARITY_DIST;
+    const key = `${process.platform}-${process.arch}`;
+    if (!dist || !fs.existsSync(path.join(dist, "main")) || !fs.existsSync(path.join(dist, key))) {
+      console.error(`drive.mjs: PARITY_INSTALL needs PARITY_DIST, a directory packed for ${key} (rs/parity/proof.sh packs one)`);
+      process.exit(2);
+    }
+    fs.cpSync(path.join(dist, "main"), pkg, { recursive: true });
+    fs.cpSync(path.join(dist, key), path.join(scope, `wtx-${key}`), { recursive: true });
+    if (given && path.resolve(given) !== REPO) fs.copyFileSync(path.join(given, "wtx.mjs"), path.join(pkg, "wtx.mjs"));
+    fs.chmodSync(path.join(pkg, "rustify", "wtx"), 0o755);
+    fs.chmodSync(path.join(scope, `wtx-${key}`, "bin", "wtx"), 0o755);
+    fs.symlinkSync("../lib/node_modules/@snomiao/wtx/rustify/wtx", path.join(inst, "bin", "wtx"));
+  }
+  fs.symlinkSync(path.join(REPO, "node_modules"), path.join(pkg, "node_modules"));
+  command = path.join(inst, "bin", "wtx");
+  commandArgs = bunSide ? programArgs.slice(1) : programArgs;
+  if (process.env.PARITY_INSTALL_RUNS === "2" && !bunSide) {
+    const warm = path.join(path.dirname(process.cwd()), "warm");
+    fs.mkdirSync(path.join(warm, "tmp"), { recursive: true });
+    const quiet = { PATH: env.PATH, HOME: env.HOME, TMPDIR: path.join(warm, "tmp"), TERMINAL_WS_PORT: "99999", TERMINAL_WS_HOST: "192.0.2.1" };
+    spawnSync(command, [], { cwd: warm, env: quiet, stdio: "ignore", timeout: 60000 });
+  }
+}
+if (process.env.PARITY_WTX_PACKAGE_ROOT !== undefined) env.WTX_PACKAGE_ROOT = fill(process.env.PARITY_WTX_PACKAGE_ROOT);
+if (process.env.PARITY_PATH !== undefined) env.PATH = fill(process.env.PARITY_PATH).replaceAll("{PATH}", process.env.PATH ?? "");
+if (process.env.PARITY_PATH_UNSET === "1") delete env.PATH;
+
+if (process.env.PARITY_DIRECT === "1") {
+  const child = spawn(command, commandArgs, { env, stdio: "inherit" });
+  child.on("error", (error) => {
+    console.error(`drive.mjs: could not start the server: ${error.code || error.message}`);
+    process.exit(127);
+  });
+  // A runner that stops this script (its time limit) stops the server too.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(signal, () => child.kill(signal));
+  child.on("exit", (code, signal) => {
+    if (signal) {
+      process.removeAllListeners(signal);
+      process.kill(process.pid, signal);
+    } else process.exit(code);
+  });
+  await new Promise(() => {});
+}
 
 let blocker = null;
 if (steps[0]?.busy) {
@@ -195,7 +303,7 @@ if (steps[0]?.busy) {
   say("(the port is taken before the server starts)");
 }
 
-const server = spawn(program, programArgs, { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+const server = spawn(command, commandArgs, { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 const logs = { stdout: [], stderr: [] };
 let lastLog = Date.now();
 server.stdout.on("data", (chunk) => {
