@@ -1069,7 +1069,7 @@
    "name": "env: every variable of the server reaches a session, wtx's own on top",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "OPENAI_API_KEY": "dummy-secret",
     "AWS_SECRET_ACCESS_KEY": "dummy",
     "TERMINAL_ACCESS_KEY": "dummy-key",
@@ -1098,7 +1098,7 @@
    "name": "env: what bun loads from .env does not reach a session, but for names on the allow-list",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
    },
    "files": {
     ".env": "PARITY_SECRET=from-env-file\nLC_FROM_FILE=passes\n"
@@ -1112,7 +1112,7 @@
    "name": "env: PROMPT_COMMAND without one of the server's",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PROMPT_COMMAND": null
    },
    "skip": {
@@ -2848,7 +2848,7 @@
    "name": "v-env: the order of the variables a session gets",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "ZZ_LAST": "1",
     "AA_FIRST": "2",
     "MM_MIDDLE": "3",
@@ -2863,7 +2863,7 @@
    "name": "v-env: names that sort differently by byte and by case",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "é_VAR": "1",
     "a_lower": "2",
     "_UNDER": "3",
@@ -2880,7 +2880,7 @@
    "name": "v-env: an empty value and a value with a newline",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "EMPTY": "",
     "NL": "line1\nline2",
     "EQ": "a=b=c"
@@ -2894,7 +2894,7 @@
    "name": "v-env: what bun loads from .env, in order",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
    },
    "files": {
     ".env": "Z_FROM_FILE=1\nA_FROM_FILE=2\n"
@@ -3383,7 +3383,7 @@
    "name": "v-install: first run, the variables of a session",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PARITY_INSTALL": "1",
     "ZZ": "1",
     "AA": "2"
@@ -3397,7 +3397,7 @@
    "name": "v-install: first run, a secret in .env and a session",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PARITY_INSTALL": "1"
    },
    "files": {
@@ -3412,7 +3412,7 @@
    "name": "v-install: first run, RUSTIFY_NO_LINK=1, a secret in .env and a session",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PARITY_INSTALL": "1",
     "RUSTIFY_NO_LINK": "1"
    },
@@ -3428,7 +3428,7 @@
    "name": "v-install: second run, a secret in .env and a session",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PARITY_INSTALL": "1",
     "PARITY_INSTALL_RUNS": "2"
    },
@@ -3444,7 +3444,7 @@
    "name": "v-install: second run, the user's own WTX_PACKAGE_ROOT reaches a session",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PARITY_INSTALL": "1",
     "PARITY_INSTALL_RUNS": "2",
     "PARITY_WTX_PACKAGE_ROOT": "<ROOT>/mine"

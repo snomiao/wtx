@@ -496,9 +496,18 @@ add("exit: deleting a session tells its clients", [create("k", QUIET), ...attach
 // reaches it. What bun read from .env is not in it (bun keeps that in process.env),
 // so of a .env only the allowed names reach a session. /usr/bin/env through sh
 // shows what the program got.
-const ENV_DUMP = ["/bin/sh", "-c", "env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
+//
+// It turns the terminal's ONLCR off first (stty -onlcr: a line ends in LF, not
+// CR LF), here and in RAWENV below. With it on, macOS's line discipline writes
+// one CR more ("\r\r\n") where its output queue fills up at a line's end: it
+// has put the CR there, cannot put the LF, and puts both again once the reader
+// has drained the queue. Whether that happens depends on how quickly bun-pty
+// reads, and a few KB of variables are enough (the env: cases differed so, at
+// LANG=, once on each side). These cases are about the environment; the CR LF
+// of a terminal is shown by the buffer: and create: cases.
+const ENV_DUMP = ["/bin/sh", "-c", "stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
 const NO_BIN_SH = { win32: "there is no /bin/sh for bun-pty to start on Windows" };
-const envCase = (name, o) => add(`env: ${name}`, [{ http: "POST /sessions/k", body: { cmd: ENV_DUMP } }, wait("k", "END\r\n"), { http: "GET /sessions/k/buffer" }], { skip: NO_BIN_SH, ...o });
+const envCase = (name, o) => add(`env: ${name}`, [{ http: "POST /sessions/k", body: { cmd: ENV_DUMP } }, wait("k", "END\n"), { http: "GET /sessions/k/buffer" }], { skip: NO_BIN_SH, ...o });
 envCase("every variable of the server reaches a session, wtx's own on top", {
   env: {
     OPENAI_API_KEY: "dummy-secret",
@@ -605,9 +614,10 @@ start("LANG and LC_ALL of another language", [], { env: { LANG: "tr_TR.UTF-8", L
 
 // ── the server, driven ──
 /** The environment a session's program gets, in its own order. It waits a
- *  moment first (bun-pty sometimes loses what a program writes at once). */
-const RAWENV = ["/bin/sh", "-c", "sleep 0.3; /usr/bin/env; echo END; exec sleep 30"];
-const RAWENV_STEPS = [{ http: "POST /sessions/k", body: { cmd: RAWENV } }, wait("k", "END\r\n"), { http: "GET /sessions/k/buffer" }];
+ *  moment first (bun-pty sometimes loses what a program writes at once), and
+ *  turns ONLCR off (see ENV_DUMP). */
+const RAWENV = ["/bin/sh", "-c", "sleep 0.3; stty -onlcr; /usr/bin/env; echo END; exec sleep 30"];
+const RAWENV_STEPS = [{ http: "POST /sessions/k", body: { cmd: RAWENV } }, wait("k", "END\n"), { http: "GET /sessions/k/buffer" }];
 const vEnv = (name, env, o = {}) => add(`v-env: ${name}`, RAWENV_STEPS, { env, skip: NO_WIN, ...o });
 vEnv("the order of the variables a session gets", { ZZ_LAST: "1", AA_FIRST: "2", MM_MIDDLE: "3", BB: "4" });
 vEnv("names that sort differently by byte and by case", { "é_VAR": "1", a_lower: "2", _UNDER: "3", Z9: "4", "A-B": "5", "1X": "6" });
