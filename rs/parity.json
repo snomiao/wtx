@@ -3199,6 +3199,134 @@
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
   {
+   "name": "v-install: first run, NODE_ENV=production set in .env",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": null,
+    "PARITY_DIRECT": "1"
+   },
+   "files": {
+    ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n",
+    ".env.production": "TERMINAL_WS_PORT=99998\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, .env.local and .env.development set the port",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": null,
+    "PARITY_DIRECT": "1"
+   },
+   "files": {
+    ".env.local": "TERMINAL_WS_PORT=99997\n",
+    ".env.development": "TERMINAL_WS_PORT=99996\nTERMINAL_WS_HOST=192.0.2.1\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, a bunfig.toml preload in the working directory",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": "99999",
+    "PARITY_DIRECT": "1"
+   },
+   "files": {
+    "bunfig.toml": "preload = [\"./pre.mjs\"]\n",
+    "pre.mjs": "if (/wtx\\.mjs$/.test(process.argv[1] ?? \"\")) console.error(\"bunfig preload ran\");\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, BUN_OPTIONS with a preload",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": "99999",
+    "PARITY_DIRECT": "1",
+    "BUN_OPTIONS": "--preload <ROOT>/pre.mjs"
+   },
+   "setup": [
+    "printf '%s\\n' 'if (/wtx\\.mjs$/.test(process.argv[1] ?? \"\")) console.error(\"BUN_OPTIONS preload ran\")' > \"<ROOT>/pre.mjs\""
+   ],
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, a .env and BUN_OPTIONS without a preload",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": "99999",
+    "PARITY_DIRECT": "1",
+    "BUN_OPTIONS": "--smol"
+   },
+   "files": {
+    ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, the launcher cannot link (RUSTIFY_NO_LINK=1), and a .env",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": null,
+    "PARITY_DIRECT": "1",
+    "RUSTIFY_NO_LINK": "1"
+   },
+   "files": {
+    ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n",
+    ".env.production": "TERMINAL_WS_PORT=99998\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, WTX_NO_NATIVE=1 and a .env",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[]",
+    "PARITY_INSTALL": "1",
+    "TERMINAL_WS_PORT": null,
+    "PARITY_DIRECT": "1",
+    "WTX_NO_NATIVE": "1"
+   },
+   "files": {
+    ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n",
+    ".env.production": "TERMINAL_WS_PORT=99998\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
    "name": "v-install: first run, NODE_OPTIONS with a preload (bun does not read it)",
    "args": [],
    "env": {
@@ -3259,6 +3387,37 @@
     "PARITY_INSTALL": "1",
     "ZZ": "1",
     "AA": "2"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, a secret in .env and a session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_INSTALL": "1"
+   },
+   "files": {
+    ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n"
+   },
+   "skip": {
+    "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"
+   },
+   "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
+  },
+  {
+   "name": "v-install: first run, RUSTIFY_NO_LINK=1, a secret in .env and a session",
+   "args": [],
+   "env": {
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; /usr/bin/env; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\r\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_INSTALL": "1",
+    "RUSTIFY_NO_LINK": "1"
+   },
+   "files": {
+    ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n"
    },
    "skip": {
     "win32": "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not"

@@ -1,6 +1,6 @@
 // Installs wtx as `npm i -g` would install it under a prefix, for the parity
-// cases named "v-install" (rs/parity/drive.mjs, PARITY_INSTALL) and for
-// rs/parity/launcher.mjs:
+// cases named "v-install" (rs/parity/drive.mjs, PARITY_INSTALL), on Linux and
+// macOS (rs/parity/launcher.mjs installs with bun and npm for real):
 //
 //   <prefix>/bin/wtx                          the command, a symbolic link
 //   <prefix>/lib/node_modules/@snomiao/wtx    the package

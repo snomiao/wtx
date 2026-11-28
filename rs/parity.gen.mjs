@@ -32,12 +32,12 @@
 // tested beside it, as Rust modules against outputs recorded from the
 // TypeScript (rs/src/testdata, rs/parity/record.ts).
 //
-// The one thing the binary answers itself is not here: a run that rustify's
-// npm launcher started under bun, after bun had applied a .env, a bunfig.toml
-// or BUN_OPTIONS of the working directory (rs/src/launcher.rs). It starts
-// nothing then, where wtx.mjs would start the server, so no run of wtx.mjs
-// can be compared with it; rs/parity/launcher.mjs checks its text. The
-// "v-install" cases here are the launcher's runs that are handed back.
+// That includes the runs that rustify's npm launcher starts under bun (the
+// first after an install, and every run where it cannot link): the "v-install"
+// cases here, and rs/parity/launcher.mjs, which installs the package for real
+// with bun and npm on every system and shows the one thing such a run does
+// that wtx.mjs does not: a preload of bunfig.toml or BUN_OPTIONS runs once
+// more, in the launcher.
 //
 // Every case has its own empty HOME and temp directory (the runner's), and
 // TMPDIR there holds the koho-term-zshrc directory wtx writes at start-up.
@@ -674,11 +674,14 @@ add("v-access: an empty TERMINAL_ACCESS_KEY from another address", [{ http: "GET
 // PARITY_INSTALL (rs/parity/drive.mjs): the TypeScript's side is @snomiao/wtx
 // 0.3.4 as published (bin/wtx is wtx.mjs), the binary's the package that
 // rs/parity/proof.sh packs (bin/wtx is rustify's launcher, under bun); "second
-// run" is after the launcher has put the binary in its place. Where bun has
-// applied something before the launcher (a .env, a bunfig.toml, BUN_OPTIONS),
-// the binary starts nothing on the launcher's run (rs/src/launcher.rs): that
-// differs from wtx.mjs by design and is checked by rs/parity/launcher.mjs, not
-// here. The npm layout here is a POSIX one: not on Windows.
+// run" is after the launcher has put the binary in its place. bun has loaded
+// the working directory's .env files and run its preloads before the
+// launcher's first line; launcher v3 gives the binary the environment the
+// command was started with, not that process.env. A preload that ran in the
+// launcher printed in the launcher too: on a first run these cases' preloads
+// print only in wtx.mjs (IN_WTX), and rs/parity/launcher.mjs shows that extra
+// run. The npm layout here is a POSIX one: not on Windows, where
+// rs/parity/launcher.mjs installs with bun and npm for real.
 const NO_WIN_INSTALL = { win32: "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not" };
 const installed = (name, steps, o = {}) =>
   add(`v-install: ${name}`, steps, { ...o, env: { PARITY_INSTALL: "1", ...(o.second ? { PARITY_INSTALL_RUNS: "2" } : {}), ...(o.env || {}) }, skip: NO_WIN_INSTALL });
@@ -690,12 +693,24 @@ const BUNFIG_PRELOAD = { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": 
 installedStart("second run, a bunfig.toml preload in the working directory", { second: true, files: BUNFIG_PRELOAD });
 installedStart("second run, BUN_OPTIONS with a preload", { second: true, env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: [`printf '%s\\n' '${IN_WTX}console.error("BUN_OPTIONS preload ran")' > "<ROOT>/pre.mjs"`] });
 installedStart("second run, NODE_ENV=production set in .env", { second: true, env: { TERMINAL_WS_PORT: null }, files: { ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n", ".env.production": "TERMINAL_WS_PORT=99998\n" } });
-// What bun does not apply on the launcher's run, so the binary hands it back.
+// On a first run, bun has applied all of these in the launcher already.
+const SECRETS = { ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n" };
+const PRODUCTION = { ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n", ".env.production": "TERMINAL_WS_PORT=99998\n" };
+const BUNFIG_PRELOAD_IN_WTX = { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": `${IN_WTX}console.error("bunfig preload ran");\n` };
+installedStart("first run, NODE_ENV=production set in .env", { env: { TERMINAL_WS_PORT: null }, files: PRODUCTION });
+installedStart("first run, .env.local and .env.development set the port", { env: { TERMINAL_WS_PORT: null }, files: { ".env.local": "TERMINAL_WS_PORT=99997\n", ".env.development": "TERMINAL_WS_PORT=99996\nTERMINAL_WS_HOST=192.0.2.1\n" } });
+installedStart("first run, a bunfig.toml preload in the working directory", { files: BUNFIG_PRELOAD_IN_WTX });
+installedStart("first run, BUN_OPTIONS with a preload", { env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: [`printf '%s\\n' '${IN_WTX}console.error("BUN_OPTIONS preload ran")' > "<ROOT>/pre.mjs"`] });
+installedStart("first run, a .env and BUN_OPTIONS without a preload", { files: SECRETS, env: { BUN_OPTIONS: "--smol" } });
+installedStart("first run, the launcher cannot link (RUSTIFY_NO_LINK=1), and a .env", { files: PRODUCTION, env: { TERMINAL_WS_PORT: null, RUSTIFY_NO_LINK: "1" } });
+installedStart("first run, WTX_NO_NATIVE=1 and a .env", { files: PRODUCTION, env: { TERMINAL_WS_PORT: null, WTX_NO_NATIVE: "1" } });
 installedStart("first run, NODE_OPTIONS with a preload (bun does not read it)", { env: { NODE_OPTIONS: "--require <ROOT>/pre.cjs" }, setup: ['echo \'console.error("NODE_OPTIONS preload ran")\' > "<ROOT>/pre.cjs"'] });
 installedStart("first run, an .env.example and an .envrc (bun reads neither)", { files: { ".env.example": "TERMINAL_WS_PORT=1\n", ".envrc": "export TERMINAL_WS_PORT=2\n" } });
 installedStart("first run, a package.json here that is not JSON", { files: { "package.json": "{ not json" } });
 installed("first run, the variables of a session", RAWENV_STEPS, { env: { ZZ: "1", AA: "2" } });
-installed("second run, a secret in .env and a session", RAWENV_STEPS, { second: true, files: { ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n" } });
+installed("first run, a secret in .env and a session", RAWENV_STEPS, { files: SECRETS });
+installed("first run, RUSTIFY_NO_LINK=1, a secret in .env and a session", RAWENV_STEPS, { files: SECRETS, env: { RUSTIFY_NO_LINK: "1" } });
+installed("second run, a secret in .env and a session", RAWENV_STEPS, { second: true, files: SECRETS });
 installed("second run, the user's own WTX_PACKAGE_ROOT reaches a session", RAWENV_STEPS, { second: true, env: { PARITY_WTX_PACKAGE_ROOT: "<ROOT>/mine" } });
 
 // ═══════════════════════════ systems ═══════════════════════════
