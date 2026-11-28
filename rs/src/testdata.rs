@@ -17,6 +17,10 @@ pub fn server() -> Value {
     serde_json::from_str(include_str!("testdata/server.json")).unwrap()
 }
 
+pub fn scenarios() -> Value {
+    serde_json::from_str(include_str!("testdata/scenarios.json")).unwrap()
+}
+
 /// A list of the fixture, by name.
 pub fn list<'a>(value: &'a Value, name: &str) -> &'a [Value] {
     value[name].as_array().unwrap_or_else(|| panic!("no list {name} in the fixture"))

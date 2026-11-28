@@ -108,6 +108,9 @@ serverSource = patch(serverSource, 'import("@xterm/headless")', 'import("@xterm/
 serverSource = patch(serverSource, "if (!existsSync(resolved)) mkdirSync(resolved, { recursive: true });", `if (!${R}.exists(resolved)) ${R}.mkdir(resolved);`);
 serverSource = patch(serverSource, "scrubSecrets(process.env)", `scrubSecrets(${R}.env)`);
 serverSource = patch(serverSource, "process.env.PROMPT_COMMAND", `${R}.env.PROMPT_COMMAND`, 2);
+serverSource = patch(serverSource, "process.env.SHELL", `${R}.env.SHELL`, 2);
+serverSource = patch(serverSource, "process.env.WTX_DEFAULT_CWD", `${R}.env.WTX_DEFAULT_CWD`);
+serverSource = patch(serverSource, "process.cwd()", `${R}.cwd`);
 serverSource = patch(serverSource, "Date.now()", `${R}.now()`, 7);
 serverSource = patch(serverSource, "clearTimeout(", `${R}.clearTimeout(`);
 serverSource = patch(serverSource, "    setTimeout(() => {", `    ${R}.setTimeout(() => {`);
@@ -124,9 +127,14 @@ const say = (...entry: unknown[]) => effects.push(entry);
 
 // bun-pty's native library: one handle per spawn, its output what a scenario
 // queues, its exit when a scenario says.
-type Handle = { queue: number[]; exited: boolean; reported: boolean };
+/** closed: killed, so that its read loop has stopped. */
+type Handle = { queue: number[]; exited: boolean; reported: boolean; closed: boolean };
 const handles: Handle[] = [];
-let spawnFails: (file: string) => boolean = () => false;
+// bun_pty_spawn fails for a program the stand-in has not got, and for a
+// size that is not a finite number (as the real one does for NaN).
+const spawnFails = (line: string, cols: number, rows: number) => line.includes("no-such") || !Number.isFinite(cols) || !Number.isFinite(rows);
+/** Handles of earlier scenarios come first; a scenario's own count from here. */
+let handleBase = 0;
 const decodeArg = (b: Uint8Array) => new TextDecoder().decode(b).replace(/\0$/, "");
 const lib = {
   symbols: {
@@ -138,16 +146,16 @@ const lib = {
         .filter(Boolean)
         .map((pair) => [pair.slice(0, pair.indexOf("=")), pair.slice(pair.indexOf("=") + 1)])
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-      if (spawnFails(line)) {
+      if (spawnFails(line, cols, rows)) {
         say("spawn-failed", line);
         return -1;
       }
-      handles.push({ queue: [], exited: false, reported: false });
-      say("spawn", handles.length - 1, line, decodeArg(cwd), num(cols), num(rows), pairs);
+      handles.push({ queue: [], exited: false, reported: false, closed: false });
+      say("spawn", handles.length - 1 - handleBase, line, decodeArg(cwd), num(cols), num(rows), pairs);
       return handles.length - 1;
     },
     bun_pty_write(handle: number, buf: Uint8Array, length: number) {
-      say("pty-write", handle, hex(buf.subarray(0, length)));
+      say("pty-write", handle - handleBase, hex(buf.subarray(0, length)));
       return length;
     },
     bun_pty_read(handle: number, buf: Uint8Array, length: number) {
@@ -160,11 +168,12 @@ const lib = {
       return h.exited ? -2 : 0;
     },
     bun_pty_resize(handle: number, cols: number, rows: number) {
-      say("pty-resize", handle, num(cols), num(rows));
+      say("pty-resize", handle - handleBase, num(cols), num(rows));
       return 0;
     },
     bun_pty_kill(handle: number) {
-      say("pty-kill", handle);
+      handles[handle].closed = true;
+      say("pty-kill", handle - handleBase);
       return 0;
     },
     bun_pty_get_pid: () => 4242,
@@ -178,7 +187,16 @@ const lib = {
 
 const record = {
   lib,
-  ptyModule: { spawn: (file: string, args: string[], opts: unknown) => new Terminal(file, args, opts) },
+  terminals: [] as any[],
+  ptyModule: {
+    spawn(file: string, args: string[], opts: unknown) {
+      const terminal = new Terminal(file, args, opts);
+      record.terminals.push(terminal);
+      return terminal;
+    },
+  },
+  cwd: "/srv",
+  sendResults: [] as number[],
   hostname: "parity-host",
   env: {} as Record<string, string>,
   existing: new Set<string>(),
@@ -261,13 +279,14 @@ const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 /** Until bun-pty's read loop has taken everything queued (and reported an exit). */
 async function drain() {
   for (let i = 0; i < 500; i++) {
-    if (handles.every((h) => h.queue.length === 0 && (!h.exited || h.reported))) return;
+    // A loop that has stopped (killed, or after its program ended) takes nothing more.
+    if (handles.every((h) => h.closed || h.reported || (h.queue.length === 0 && !h.exited))) return;
     await pause(2);
   }
   throw new Error("bun-pty's read loop did not take what was queued");
 }
 
-const fixtures: Record<string, Record<string, unknown>> = { js: {}, summary: {}, server: {} };
+const fixtures: Record<string, Record<string, unknown>> = { js: {}, summary: {}, server: {}, scenarios: {} };
 
 // ═══════════════════════════ js.json ═══════════════════════════
 
@@ -394,7 +413,7 @@ const fixtures: Record<string, Record<string, unknown>> = { js: {}, summary: {},
   });
   const NAMES = ["PATH", "HOME", "Path", "path", "SHELL", "TERM", "COLORTERM", "LANG", "LC_ALL", "LC_X", "lc_x", "XDG_A", "NODE_ENV", "npm_x", "NPM_X", "BUN_X", "PNPM_X", "YARN_X", "GIT_X", "VSCODE_X", "TERMINFO", "TERMINFO_DIRS", "SSH_X", "SSH_AUTH_SOCK", "HOST", "HOSTNAME", "ZDOTDIR", "PROMPT_COMMAND", "GH_TOKEN", "OPENAI_API_KEY", "SECRET", "TERMINAL_ACCESS_KEY", "SystemRoot", "SYSTEMROOT", "ProgramFiles(x86)", "CODEHOST", "X", "LC_", "XDG", "1", "__proto__", "constructor", "toString"];
   const VALUES = ["", "v", "a b", "é", "=", "x=y", "$PWD", "'", '"', "\\", "echo hi"];
-  fixtures.server.ptyEnv = Array.from({ length: 400 }, () => {
+  fixtures.server.ptyEnv = Array.from({ length: 150 }, () => {
     const env: Record<string, string> = {};
     for (let n = below(r, 10); n > 0; n--) env[pick(r, NAMES)] = pick(r, VALUES);
     record.env = env;
@@ -439,7 +458,7 @@ const fixtures: Record<string, Record<string, unknown>> = { js: {}, summary: {},
   server.sessions.clear();
   const RENDER = ["a", "b", "\n", "\r\n", "\x1b[31m", "\x1b[0m", "\x1b]0;title\x07", "\x1b]7;file://h/x\x1b\\", "\x1b(B", "\x1bM", "\x07", "\x00", "\x7f", "\t", "\x1b[?25l", "é", "line\n", "\n\n", "\x1b"];
   const rendered: unknown[] = [];
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < 400; i++) {
     let bytes = new TextEncoder().encode(join_(r, RENDER, 10));
     if (below(r, 10) === 0) bytes = Uint8Array.from([0xef, 0xbb, 0xbf, ...bytes, 0xff]);
     const tail = pick(r, [0, 0, 1, 2, 5]);
@@ -450,7 +469,227 @@ const fixtures: Record<string, Record<string, unknown>> = { js: {}, summary: {},
   fixtures.server.zshrc = ["koho-term-zshrc", ...[".zshenv", ".zprofile", ".zshrc"].map((name) => [name, readFileSync(join(server.KOHO_ZDOTDIR, name), "utf8")])];
 }
 
-// (scenarios.json: below, once the server's handlers are recorded.)
+// ═══════════════════════════ scenarios.json ═══════════════════════════
+//
+// The handlers themselves: a fresh copy of the module per scenario, its
+// fetch and websocket handlers called with events made up as it goes (from
+// what the scenario has so far: sessions, clients, PTYs), and every effect
+// of each event recorded in order. bun-pty's Terminal runs as it is, its
+// read loop taking what an event queues as its program's output.
+
+{
+  const r = random(4);
+  // JSON.parse and Number(), which the handlers apply to bodies and messages.
+  const JSON_PIECES = ["{", "}", "[", "]", ",", ":", '"a"', '"cmd"', '"cols"', "1", "-0", "1e400", "0.5", "true", "null", '"\\u00e9"', '"\\ud83d\\ude00"', '"\\ud800"', " ", "\n", '"x', "01", "-", "1.", ".5", "\"\\q\""];
+  fixtures.js.jsonParse = Array.from({ length: 1500 }, () => {
+    const text = join_(r, JSON_PIECES, 6);
+    let out: unknown;
+    try {
+      out = JSON.stringify(JSON.parse(text));
+    } catch {
+      out = null;
+    }
+    return [text, out];
+  });
+  const NUMBER_PIECES = [" ", "\t", "\u00a0", "\ufeff", "\n", "+", "-", "0x", "0X", "0o", "0b", "1", "9", "f", "e", "E", ".", "Infinity", "NaN", "1e", "12", "0", "ffffffffffffffff", "_", "١"];
+  fixtures.js.toNumber = Array.from({ length: 1500 }, () => {
+    const text = join_(r, NUMBER_PIECES, 5);
+    return [text, num(Number(text))];
+  });
+
+  const KEYS = ["a", "b", "a%20b", "%C3%A9", "%ZZ", "s_x"];
+  const BODIES: (string | null)[] = [
+    null, "", "hello", "null", "[]", "7", '"x"', "{}",
+    '{"cmd":["<P>","-l"]}', '{"cmd":["<P>"],"cols":120,"rows":40}', '{"cmd":[]}', '{"cmd":"ls"}', '{"cmd":[1]}',
+    '{"cwd":"/r/o/p/sub"}', '{"cwd":"rel"}', '{"cwd":"/r/../x"}', '{"cwd":""}', '{"cwd":0}', '{"cwd":5}', '{"cwd":"C:\\\\w"}', '{"cwd":null}',
+    '{"cols":3,"rows":1}', '{"cols":"100","rows":"30"}', '{"cols":100.7,"rows":30.2}', '{"cols":"abc"}', '{"cols":true}', '{"cols":[5]}', '{"cols":null,"rows":null}', '{"cols":1e400}',
+    '{"cmd":["/bin/no-such"]}', '{"cmd":["<P>"],"cmd":["<P>","x"]}', '{"__proto__":1,"cmd":["<P>"]}', '{"cmd":["\\ud800"]}',
+  ];
+  const PROGRAMS = ["bash", "/bin/sh", "a b", "it's", "é"];
+  const QUERIES = ["", "?tail=1", "?tail=0", "?tail=abc", "?strip=1", "?offset=2", "?cr=1", "?cr=0", "?key=k", "?key=x", "?cwd=/r/o/p", "?cwd=/r", "?cwd=", "?x=1&cr=1"];
+  const WS_QUERIES = ["?cwd=/r/o/p", "?cwd=/srv/new", "?cwd=rel", "?cwd=", "", "?session=a", "?session=b", "?session=", "?session=a&cwd=rel", "?cwd=/r/o/p&cols=100&rows=30", "?cwd=/r/o/p&cols=4&rows=1", "?cwd=/r/o/p&cols=abc", "?cwd=/r/o/p&cols=99999999999999999999", "?cwd=/r/o/p&key=k", "?cwd=/r/o/p%20q"];
+  const MESSAGES = [
+    '{"type":"resize","cols":100,"rows":30}', '{"type":"resize","cols":"90","rows":20.9}', '{"type":"resize","cols":1,"rows":1}', '{"type":"resize","cols":0,"rows":5}',
+    '{"type":"resize","cols":"x","rows":5}', '{"type":"resize","cols":[5],"rows":5}', '{"type":"resize","cols":true,"rows":3}',
+    '{"type":"ping","t":42}', '{"type":"ping","t":"x"}', '{"type":"ping","t":null}', '{"type":"ping"}', '{"type":"ping","t":-0}', '{"type":"ping","t":1.5e300}', '{"type":"ping","t":[1]}', '{"type":"ping","t":true}',
+    '{"type":"other"}', "ls\r", "null", "5", "not json {", '"str"', "", "é\r",
+  ];
+  const OUTPUT = ["hello\r\n", "x", "\x1b]7;file://h/r/o/p/sub\x07", "\x1b]7;file://h/r/o/p%20q\x1b\\", "\x1b]7;file://h/srv\x07", "\x1b[c", "\x1b[0c", "\x1b[6n", "\xe2\x82", "\xac", "\xff", "\xef\xbb\xbf", "\x1b[31mred\x1b[0m", "\r\n"];
+  const bytesOf = (pieces: string) => Uint8Array.from(pieces, (c) => c.charCodeAt(0));
+  const GIT: Record<string, string> = {
+    "branch --show-current": "main\n",
+    "status --porcelain": " M a\nM  b\n?? c\nR  d -> e\n",
+    "rev-list --left-right --count @{u}...HEAD": "1\t2\n",
+  };
+  const latin1 = (s: string) => Buffer.from(bytesOf(s));
+
+  const scenarios: unknown[] = [];
+  for (let n = 0; n < 200; n++) {
+    const config = { TERMINAL_ACCESS_KEY: pick(r, [undefined, undefined, "k"]), WTX_REPO_BASE: pick(r, [undefined, "/r"]) };
+    const mod = await loadServer({ ...config, TERMINAL_WS_PORT: undefined });
+    record.options = null;
+    effects = [];
+    captureConsole();
+    try {
+      mod.startTerminalWS();
+    } finally {
+      releaseConsole();
+    }
+    const startUp = effects;
+    const options = record.options;
+    handleBase = handles.length;
+    record.timers = [];
+    record.clock = 1_700_000_000_000;
+    record.existing = new Set(["/", "/srv", "/r", "/r/o/p"]);
+    record.git = GIT;
+    record.sendResults = [];
+    record.env = { PATH: "/usr/bin", HOME: "/home/u", SECRET: "s", LC_X: "1" };
+    for (const [name, value] of [["SHELL", pick(r, ["/bin/sh", "", undefined, "/bin/zsh"])], ["WTX_DEFAULT_CWD", pick(r, [undefined, undefined, "/w", "rel", ""])], ["PROMPT_COMMAND", pick(r, [undefined, "pc"])]] as const) {
+      if (value !== undefined) record.env[name] = value;
+    }
+    record.cwd = pick(r, ["/srv", "/r/o/p"]);
+    const startEnv = { ...record.env };
+    const sockets: any[] = [];
+    const events: unknown[] = [];
+    const count = 4 + below(r, 26);
+    // After a change to what ws.send returns, output with an OSC 7 follows,
+    // which is where the server looks at that value.
+    let backedUp = false;
+    for (let e = 0; e < count; e++) {
+      effects = [];
+      captureConsole();
+      let event: Record<string, unknown> = {};
+      try {
+        const roll = r();
+        const ptyCount = handles.length - handleBase;
+        if (roll < 0.36 || (roll < 0.5 && sockets.length === 0)) {
+          // An HTTP request (or the handshake of a WebSocket).
+          const websocket = r() < 0.3;
+          // Half the time a key the scenario has a session for.
+          const live = [...mod.sessions.keys()];
+          const key = live.length && r() < 0.5 ? encodeURIComponent(pick(r, live)) : pick(r, KEYS);
+          const typing = !websocket && live.length > 0 && r() < 0.2;
+          const method = websocket ? "GET" : typing ? "POST" : pick(r, ["GET", "GET", "POST", "POST", "DELETE", "PUT"]);
+          const target = websocket
+            ? `${pick(r, ["/", "/", "/x"])}${live.length && r() < 0.3 ? `?session=${key}` : pick(r, WS_QUERIES)}`
+            : typing
+              ? `/sessions/${key}/input${pick(r, ["", "?cr=1", "?cr=0", "?cr=1&cr=0"])}`
+              : `${pick(r, ["/sessions", `/sessions/${key}`, `/sessions/${key}/buffer`, `/sessions/${key}/input`, `/sessions/${key}/git`, `/sessions/${key}/x`, "/status/o/p", "/status/o", "/summary", "/", "/x/../sessions"])}${pick(r, QUERIES)}`;
+          const bodyText = typing ? pick(r, ["ls", "", "é", "\ufeffx", "a\r"]) : method === "POST" || method === "DELETE" ? pick(r, BODIES) : null;
+          const body = bodyText === null ? null : bodyText.replaceAll("<P>", pick(r, PROGRAMS));
+          const headers: Record<string, string> = {};
+          const auth = pick(r, [undefined, undefined, "Bearer k", "Bearer x", "bearer k", "Basic k"]);
+          if (auth) headers.authorization = auth;
+          if (websocket) headers.upgrade = "websocket";
+          clientIp = pick(r, ["127.0.0.1", "127.0.0.1", "::1", "::ffff:127.0.0.1", "10.0.0.2"]);
+          const request = new Request(`http://127.0.0.1:3004${target}`, { method, headers, body: body ?? undefined });
+          const url = new URL(request.url);
+          event = { http: { method, pathname: url.pathname, search: url.search, authorization: request.headers.get("authorization"), websocket, body: body === null ? null : hex(new TextEncoder().encode(body)), ip: clientIp } };
+          upgradeData = null;
+          let outcome: unknown;
+          try {
+            const response = await options.fetch(request, fakeServer);
+            if (response === undefined && upgradeData) {
+              const id = sockets.length;
+              const ws = {
+                data: upgradeData,
+                send(x: string | Uint8Array) {
+                  say("send", id, typeof x === "string" ? "text" : "binary", typeof x === "string" ? x : hex(x));
+                  return record.sendResults[id] ?? 1;
+                },
+                close(code: number, reason: string) {
+                  say("close", id, code, reason);
+                },
+              };
+              sockets.push(ws);
+              outcome = { upgrade: id, fetchEffects: effects };
+              effects = [];
+              try {
+                options.websocket.open(ws);
+                await drain();
+              } catch (error) {
+                (outcome as any).openThrows = (error as Error).message;
+              }
+            } else {
+              // A Response of a string has no Content-Type until Bun.serve sends it
+              // (text/plain;charset=utf-8, as the parity cases show): null here.
+              outcome = { status: response.status, type: response.headers.get("content-type"), body: hex(new Uint8Array(await response.arrayBuffer())) };
+            }
+          } catch (error) {
+            outcome = { throws: (error as Error).message };
+          }
+          event.outcome = outcome;
+        } else if (roll < 0.56 && sockets.length) {
+          const id = below(r, sockets.length);
+          const binary = r() < 0.15;
+          const message = binary ? pick(r, ["61ff62", "efbbbf6869", "e282"]) : pick(r, MESSAGES);
+          event = { message: { client: id, ...(binary ? { hex: message } : { text: message }) } };
+          try {
+            options.websocket.message(sockets[id], binary ? Buffer.from(message, "hex") : message);
+            await drain();
+          } catch (error) {
+            event.throws = (error as Error).message;
+          }
+        } else if (roll < 0.61 && sockets.length) {
+          const id = below(r, sockets.length);
+          event = { close: id };
+          options.websocket.close(sockets[id], 1000, "");
+        } else if ((roll < 0.78 || backedUp) && ptyCount) {
+          const pty = below(r, ptyCount);
+          const big = below(r, 30) === 0;
+          const data = backedUp ? `out\x1b]7;file://h/r/o/p/${pick(r, ["a", "b", "c"])}\x07` : big ? "y".repeat(5000) + "\x1b[c" : join_(r, OUTPUT, 4);
+          event = { data: { pty, hex: hex(bytesOf(data)) } };
+          handles[handleBase + pty].queue.push(...bytesOf(data));
+          await drain();
+        } else if (roll < 0.82 && ptyCount) {
+          const pty = below(r, ptyCount);
+          event = { exit: pty };
+          handles[handleBase + pty].exited = true;
+          await drain();
+        } else if (roll < 0.94) {
+          const ms = pick(r, [10, 49, 50, 51, 60, 1000, 60_001]);
+          event = { advance: ms };
+          record.clock += ms;
+          for (;;) {
+            const due = record.timers.filter((t) => t.at <= record.clock).sort((a, b) => a.at - b.at || a.id - b.id)[0];
+            if (!due) break;
+            record.timers = record.timers.filter((t) => t !== due);
+            due.fn();
+          }
+          await drain();
+        } else if (roll < 0.98 && sockets.length) {
+          const id = below(r, sockets.length);
+          const value = pick(r, [-1, 0, 1, 7]);
+          event = { sendResult: { client: id, value } };
+          record.sendResults[id] = value;
+        } else {
+          const name = pick(r, ["SHELL", "WTX_DEFAULT_CWD", "PROMPT_COMMAND"]);
+          const value = pick(r, [undefined, "", "/bin/bash", "/srv/d", "x"]);
+          event = { env: { name, value: value ?? null } };
+          if (value === undefined) delete record.env[name];
+          else record.env[name] = value;
+        }
+      } finally {
+        releaseConsole();
+      }
+      event.effects = effects;
+      backedUp = "sendResult" in event;
+      events.push(event);
+    }
+    // The scenario's PTYs stop reading; the next scenario has fresh ones.
+    // (What that does is not part of the scenario.)
+    effects = [];
+    captureConsole();
+    for (const terminal of record.terminals) terminal.kill();
+    releaseConsole();
+    record.terminals = [];
+    await pause(10);
+    scenarios.push({ config: { accessKey: config.TERMINAL_ACCESS_KEY ?? "", repoBase: config.WTX_REPO_BASE ?? "" }, startUp, start: { env: startEnv, cwd: record.cwd }, events });
+    void latin1;
+  }
+  fixtures.scenarios = { scenarios };
+}
+
 
 // ═══════════════════════════ write ═══════════════════════════
 

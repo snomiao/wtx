@@ -15,14 +15,16 @@
 //! - [`term_summary`]: src/term-summary.ts, what `/summary` says;
 //! - [`server`]: the pieces of src/server.ts (session keys, working
 //!   directories, sizes, the replay buffer, OSC 7, the PTY's environment,
-//!   `/status`, the fallback renderer) and the HTTP and WebSocket handlers
-//!   over a table of sessions, with the PTY, git and the clock as stand-ins.
+//!   `/status`, the fallback renderer);
+//! - [`api`]: the HTTP and WebSocket handlers over a table of sessions, with
+//!   the PTY, git, the clock and the clients as stand-ins.
 //!
 //! What is not here, and keeps the server in the JavaScript: rendering a
 //! screen as @xterm/headless does (`?strip=1`, `tail`, `offset`,
 //! `/summary`), Bun.serve's own HTTP and WebSocket handling and its error
 //! pages, bun's loading of .env files, and a PTY.
 
+pub mod api;
 pub mod js;
 pub mod server;
 pub mod term_summary;
