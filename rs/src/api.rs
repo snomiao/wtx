@@ -814,7 +814,7 @@ mod tests {
     /// The effects of the last event, as the recorder writes them; the
     /// directories it made exist from now on, as they do for the recorder.
     fn take(server: &mut Server, world: &mut TestWorld) -> Value {
-        let effects: Vec<Effect> = server.effects.drain(..).collect();
+        let effects: Vec<Effect> = std::mem::take(&mut server.effects);
         for effect in &effects {
             if let Effect::Mkdir(path) = effect {
                 world.existing.insert(path.clone());
