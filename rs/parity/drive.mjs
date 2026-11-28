@@ -155,12 +155,20 @@ function clean(text) {
   return result;
 }
 
+// The directories of this run (the case's, and the one that holds it) as a
+// body may hold them inside JSON, with every backslash doubled: bun's error
+// page does, on Windows. Printed as a JSON string they would be doubled
+// again, a spelling the runner cannot turn back into <CWD>; so they are
+// written plainly first. (Without a backslash in them, nothing changes.)
+const runDirs = [process.cwd(), path.dirname(process.cwd())].filter((dir) => dir.includes("\\"));
+const plainDirs = (text) => runDirs.reduce((t, dir) => t.split(JSON.stringify(dir).slice(1, -1)).join(dir), text);
+
 /** Bytes as a JSON string when they are UTF-8, else as hex. */
 function shown(bytes) {
   const buf = Buffer.from(bytes);
   try {
     const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buf);
-    return JSON.stringify(text);
+    return JSON.stringify(plainDirs(text));
   } catch {
     return `hex ${buf.toString("hex")}`;
   }
