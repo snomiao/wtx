@@ -510,7 +510,15 @@ add("exit: deleting a session tells its clients", [create("k", QUIET), ...attach
 // reads, and a few KB of variables are enough (the env: cases differed so, at
 // LANG=, once on each side). These cases are about the environment; the CR LF
 // of a terminal is shown by the buffer: and create: cases.
-const ENV_DUMP = ["/bin/sh", "-c", "stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
+//
+// And it waits a moment before it writes, as RAWENV does: bun-pty (0.4.8)
+// reads the PTY already in its constructor, before wtx can listen for the
+// data, and fires what it gets there to no one, so a program that writes at
+// once now and then loses all it wrote (on Linux, 6 spawns at once: 3 of
+// 1200 spawns of this program without the sleep, all of whose output had
+// been fired before a listener was there, against 0 of 1200 with it; an
+// env: case differed so once, its buffer empty on the TypeScript side).
+const ENV_DUMP = ["/bin/sh", "-c", "sleep 0.3; stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
 const NO_BIN_SH = { win32: "there is no /bin/sh for bun-pty to start on Windows" };
 const envCase = (name, o) => add(`env: ${name}`, [{ http: "POST /sessions/k", body: { cmd: ENV_DUMP } }, wait("k", "END\n"), { http: "GET /sessions/k/buffer" }], { skip: NO_BIN_SH, ...o });
 envCase("every variable of the server reaches a session, wtx's own on top", {

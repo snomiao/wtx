@@ -1069,7 +1069,7 @@
    "name": "env: every variable of the server reaches a session, wtx's own on top",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "OPENAI_API_KEY": "dummy-secret",
     "AWS_SECRET_ACCESS_KEY": "dummy",
     "TERMINAL_ACCESS_KEY": "dummy-key",
@@ -1098,7 +1098,7 @@
    "name": "env: what bun loads from .env does not reach a session, but for names on the allow-list",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]"
    },
    "files": {
     ".env": "PARITY_SECRET=from-env-file\nLC_FROM_FILE=passes\n"
@@ -1112,7 +1112,7 @@
    "name": "env: PROMPT_COMMAND without one of the server's",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
+    "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"/bin/sh\",\"-c\",\"sleep 0.3; stty -onlcr; env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30\"]}},{\"wait\":\"k\",\"contains\":\"END\\n\"},{\"http\":\"GET /sessions/k/buffer\"}]",
     "PROMPT_COMMAND": null
    },
    "skip": {
