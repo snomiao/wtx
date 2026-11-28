@@ -38,8 +38,7 @@ jobs:
       bins: wtx
       version: ${{ inputs.version }}
       # Proof that the binary behaves like wtx.mjs, on Linux x64, macOS arm64
-      # and Windows x64, each with the binary just built for it, except
-      # where it refuses a launcher's run (below).
+      # and Windows x64, each with the binary just built for it.
       # rs/parity/proof.sh checks that rs/parity.json is what
       # rs/parity.gen.mjs writes and rs/src/testdata what rs/parity/record.ts
       # records from this bun, then runs side by side
@@ -51,12 +50,16 @@ jobs:
       #   since the binary hands the whole server back on every system;
       # - cargo test: the ported modules against what the TypeScript's own
       #   functions answered under bun;
-      # - on Linux and macOS, the npm package packed with this binary by
-      #   rustify's pack.mjs (beside $RUSTIFY_PARITY): the "v-install" cases
-      #   install it as npm does, so that the first run goes through
-      #   rustify's launcher, and rs/parity/launcher.mjs checks the
-      #   launcher's runs the binary refuses (where bun had applied a .env,
-      #   a bunfig.toml or BUN_OPTIONS before it).
+      # - the npm package packed with this binary by rustify's pack.mjs and
+      #   launcher (beside $RUSTIFY_PARITY, so at the same releases/v1): on
+      #   Linux and macOS the "v-install" cases install it as npm does, so
+      #   that the first run goes through rustify's launcher; and on all
+      #   three rs/parity/launcher.mjs installs it with bun and with npm from
+      #   a stand-in registry (rustify's registry.mjs, no upstream) and
+      #   compares the first run and the second with wtx.mjs run directly,
+      #   in a directory with .env files, a bunfig.toml preload and
+      #   BUN_OPTIONS. It fails with a launcher older than v3, which hands
+      #   the binary bun's process.env, .env values and all.
       # `bun install` gives the TypeScript bun-pty and @xterm/headless.
       # Every case starts a server twice and waits on it, and the hand-back
       # check runs them all again: on a Windows 11 machine with 3 lanes the
