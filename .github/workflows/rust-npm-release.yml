@@ -57,9 +57,13 @@ jobs:
       #   three rs/parity/launcher.mjs installs it with bun and with npm from
       #   a stand-in registry (rustify's registry.mjs, no upstream) and
       #   compares the first run and the second with wtx.mjs run directly,
-      #   in a directory with .env files, a bunfig.toml preload and
-      #   BUN_OPTIONS. It fails with a launcher older than v3, which hands
-      #   the binary bun's process.env, .env values and all.
+      #   in 14 scenarios (13 on Windows): .env files, preloads of a
+      #   bunfig.toml and of BUN_OPTIONS (one deletes a variable of the
+      #   user's, one sets NODE_ENV), an empty environment, RUSTIFY_NO_LINK=1.
+      #   It fails with a launcher older than v3, which hands the binary
+      #   bun's process.env, .env values and all, and with the first cut of
+      #   v3 (rustify 25ce88e), which did so after such a preload and from an
+      #   empty environment: releases/v1 must have the launcher after it.
       # `bun install` gives the TypeScript bun-pty and @xterm/headless.
       # Every case starts a server twice and waits on it, and the hand-back
       # check runs them all again: on a Windows 11 machine with 3 lanes the
@@ -91,9 +95,9 @@ jobs:
         TERMINAL_WS_PORT=99999
         TERMINAL_WS_HOST=192.0.2.1
       # Handed back to wtx.mjs on every platform (rs/src/js_fallback.rs is
-      # helper v5, so [handback] is checked), which fails at Bun.serve with
-      # exit code 1 and never says it is listening: with no arguments, and
-      # with --version.
+      # rustify's JS fallback v6, which can say who answered, so [handback]
+      # is checked), which fails at Bun.serve with exit code 1 and never says
+      # it is listening: with no arguments, and with --version.
       smoke-extra: |
         [1] [handback] wtx => is out of range !> listening
         [1] [handback] wtx --version => is out of range !> listening
