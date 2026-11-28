@@ -35,7 +35,9 @@
 // Every case has its own empty HOME and temp directory (the runner's), and
 // TMPDIR there holds the koho-term-zshrc directory wtx writes at start-up.
 // No case reaches the network: the server listens on 127.0.0.1 (or fails to
-// listen), and git only ever works on repositories inside the case.
+// listen; the two cases of a host that listens on every interface give it an
+// access key made for the run, so that only loopback gets in), and git only
+// ever works on repositories inside the case.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -104,8 +106,11 @@ add("start: TERMINAL_WS_PORT with white space and a sign before it", [LIST], { e
 add("start: TERMINAL_WS_PORT with a fraction", [LIST], { env: { TERMINAL_WS_PORT: "{PORT}.9" } });
 add("start: the port is in use", [{ busy: true }]);
 add("start: TERMINAL_WS_HOST an address this machine does not have", [], { env: { TERMINAL_WS_HOST: "192.0.2.1" } });
-add("start: TERMINAL_WS_HOST empty", [LIST], { env: { TERMINAL_WS_HOST: "" } });
-add("start: TERMINAL_WS_HOST 0.0.0.0", [LIST], { env: { TERMINAL_WS_HOST: "0.0.0.0" } });
+// These two listen on every interface: a key of the run's own keeps out
+// whoever else could reach the port meanwhile (loopback needs none).
+const OPEN = { TERMINAL_ACCESS_KEY: "{SECRET}" };
+add("start: TERMINAL_WS_HOST empty", [LIST], { env: { TERMINAL_WS_HOST: "", ...OPEN } });
+add("start: TERMINAL_WS_HOST 0.0.0.0", [LIST], { env: { TERMINAL_WS_HOST: "0.0.0.0", ...OPEN } });
 add("start: TERMINAL_WS_HOST not an address", [], { env: { TERMINAL_WS_HOST: "not a host name" } });
 const ZSH = ['cd "$TMPDIR/koho-term-zshrc" && for f in .zshenv .zprofile .zshrc; do echo "== $f"; cat "$f"; done; ls -A'];
 add("start: writes the zsh start-up files into the temp directory", [], { after: ZSH });

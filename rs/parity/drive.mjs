@@ -66,7 +66,8 @@
 //   {"busy": true} occupies the port first, before the server starts (as
 //        the first step only), so that the server cannot bind it
 // In any string of a step, <BUN> stands for the bun on PATH and {PORT} for
-// the port.
+// the port; in the server's variables too, and {SECRET} for a random key
+// made for this run (printed as <SECRET>).
 
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -114,9 +115,12 @@ function freePort() {
 }
 
 const port = await freePort();
+// A key no one else knows, for a case whose server listens on every
+// interface: `{SECRET}` in a variable of the case stands for it.
+const secret = crypto.randomBytes(16).toString("hex");
 const fill = (value) =>
   typeof value === "string"
-    ? value.replaceAll("<BUN>", bun).replaceAll("{PORT}", String(port))
+    ? value.replaceAll("<BUN>", bun).replaceAll("{PORT}", String(port)).replaceAll("{SECRET}", secret)
     : Array.isArray(value)
       ? value.map(fill)
       : value && typeof value === "object"
@@ -144,7 +148,7 @@ if (process.env.PARITY_DIRS) for (const dir of JSON.parse(process.env.PARITY_DIR
 
 const bunSpellings = [bun, JSON.stringify(bun).slice(1, -1)].filter((s, i, all) => all.indexOf(s) === i);
 function clean(text) {
-  let result = text;
+  let result = text.split(secret).join("<SECRET>");
   for (const spelling of bunSpellings) result = result.split(spelling).join("<BUN>");
   result = result.replace(/s_[0-9a-f]{12}/g, (key) => sessionKeys.get(key) ?? key);
   // The port where a port is written (`:3004`, `=3004`, `port 3004`), not
@@ -181,7 +185,7 @@ function shown(bytes) {
 const env = { ...process.env };
 for (const name of Object.keys(env)) if (name.startsWith("PARITY_")) delete env[name];
 if (env.TERMINAL_WS_PORT === undefined) env.TERMINAL_WS_PORT = String(port);
-else env.TERMINAL_WS_PORT = fill(env.TERMINAL_WS_PORT);
+for (const name of Object.keys(env)) env[name] = fill(env[name]);
 
 let blocker = null;
 if (steps[0]?.busy) {

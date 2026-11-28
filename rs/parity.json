@@ -139,7 +139,8 @@
    "args": [],
    "env": {
     "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
-    "TERMINAL_WS_HOST": ""
+    "TERMINAL_WS_HOST": "",
+    "TERMINAL_ACCESS_KEY": "{SECRET}"
    },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
@@ -148,7 +149,8 @@
    "args": [],
    "env": {
     "PARITY_STEPS": "[{\"http\":\"GET /sessions\"}]",
-    "TERMINAL_WS_HOST": "0.0.0.0"
+    "TERMINAL_WS_HOST": "0.0.0.0",
+    "TERMINAL_ACCESS_KEY": "{SECRET}"
    },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
