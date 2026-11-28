@@ -38,7 +38,8 @@ jobs:
       bins: wtx
       version: ${{ inputs.version }}
       # Proof that the binary behaves like wtx.mjs, on Linux x64, macOS arm64
-      # and Windows x64, each with the binary just built for it.
+      # and Windows x64, each with the binary just built for it, except
+      # where it refuses a launcher's run (below).
       # rs/parity/proof.sh checks that rs/parity.json is what
       # rs/parity.gen.mjs writes and rs/src/testdata what rs/parity/record.ts
       # records from this bun, then runs side by side
@@ -49,12 +50,19 @@ jobs:
       #   against a stand-in package: every case must reach the JavaScript,
       #   since the binary hands the whole server back on every system;
       # - cargo test: the ported modules against what the TypeScript's own
-      #   functions answered under bun.
+      #   functions answered under bun;
+      # - on Linux and macOS, the npm package packed with this binary by
+      #   rustify's pack.mjs (beside $RUSTIFY_PARITY): the "v-install" cases
+      #   install it as npm does, so that the first run goes through
+      #   rustify's launcher, and rs/parity/launcher.mjs checks the
+      #   launcher's runs the binary refuses (where bun had applied a .env,
+      #   a bunfig.toml or BUN_OPTIONS before it).
       # `bun install` gives the TypeScript bun-pty and @xterm/headless.
       # Every case starts a server twice and waits on it, and the hand-back
-      # check runs them all again: on a Windows 11 machine with 3 lanes this
-      # took over 25 minutes.
-      parity-timeout-minutes: 60
+      # check runs them all again: on a Windows 11 machine with 3 lanes the
+      # 83 cases that ran there before the verifier's took over 25 minutes,
+      # and 130 run there now.
+      parity-timeout-minutes: 90
       parity-platforms: '["linux-x64", "darwin-arm64", "win32-x64"]'
       parity: >-
         bun install --frozen-lockfile
