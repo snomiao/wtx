@@ -1,0 +1,111 @@
+# Builds the Rust `wtx` binary for every platform, proves on Linux, macOS
+# and Windows that it behaves like wtx.mjs (rs/parity/proof.sh), packs it
+# together with the TypeScript the package ships, and checks on Linux, macOS
+# and Windows (x64 and arm64) that `bun i -g` / `npm i -g` gives a working
+# `wtx` command that hands its command lines to wtx.mjs.
+#
+# It does not publish. Releases still go through release.yml.
+#
+# The pipeline lives in https://github.com/snomiao/rustify.
+
+name: rust-npm-release
+
+on:
+  pull_request:
+    # The proof compares the binary with wtx.mjs and src/ (and the Rust
+    # modules with the TypeScript's own functions), and the smoke lines rely
+    # on where src/server.ts stops (see smoke-env), so a change to any of
+    # them, or to the dependencies the TypeScript runs on, reruns it.
+    paths:
+      - "rs/**"
+      - "src/**"
+      - "wtx.mjs"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/rust-npm-release.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, without a leading v (default: the version in rs/Cargo.toml)"
+        required: false
+        type: string
+
+jobs:
+  build:
+    uses: snomiao/rustify/.github/workflows/rust-npm-build.yml@releases/v1
+    with:
+      manifest: rs/Cargo.toml
+      bins: wtx
+      version: ${{ inputs.version }}
+      # Proof that the binary behaves like wtx.mjs, on Linux x64, macOS arm64
+      # and Windows x64, each with the binary just built for it.
+      # rs/parity/proof.sh checks that rs/parity.json is what
+      # rs/parity.gen.mjs writes and rs/src/testdata what rs/parity/record.ts
+      # records from this bun, then runs side by side
+      # - the parity cases (rs/parity.json): each starts the server, wtx.mjs
+      #   and the binary in turn, on 127.0.0.1 and a free port, drives it
+      #   over HTTP and WebSocket with sessions that run bun or a fake shell,
+      #   and compares everything it answered and logged; then the binary
+      #   against a stand-in package: every case must reach the JavaScript,
+      #   since the binary hands the whole server back on every system;
+      # - cargo test: the ported modules against what the TypeScript's own
+      #   functions answered under bun;
+      # - the npm package packed with this binary by rustify's pack.mjs and
+      #   launcher (beside $RUSTIFY_PARITY, so at the same releases/v1): on
+      #   Linux and macOS the "v-install" cases install it as npm does, so
+      #   that the first run goes through rustify's launcher; and on all
+      #   three rs/parity/launcher.mjs installs it with bun and with npm from
+      #   a stand-in registry (rustify's registry.mjs, no upstream) and
+      #   compares the first run and the second with wtx.mjs run directly,
+      #   in 18 scenarios (17 on Windows): .env files, preloads of a
+      #   bunfig.toml and of BUN_OPTIONS (one deletes a variable of the
+      #   user's, one sets NODE_ENV, one deletes process.versions.bun, one
+      #   puts its own object in process.env's place), an empty environment,
+      #   RUSTIFY_NO_LINK=1; and 3 of them with pnpm where the runner has one
+      #   on PATH (Linux and macOS). It fails with a launcher older than v3,
+      #   which hands the binary bun's process.env, .env values and all, with
+      #   the first cut of v3 (rustify 25ce88e), which did so after such a
+      #   preload and from an empty environment, and with the launchers
+      #   after it and before rustify d9f603c (#57; releases/v1 was a629a0a):
+      #   after a preload that deletes process.versions.bun, or puts in
+      #   process.env's place an object that throws when asked, they pass
+      #   process.env on too, and under pnpm they put the binary where
+      #   pnpm's shim runs `bun <file>`. releases/v1 is d9f603c since
+      #   2026-11-28, and every scenario passes with its launcher.
+      # `bun install` gives the TypeScript bun-pty and @xterm/headless.
+      # Every case starts a server twice and waits on it, and the hand-back
+      # check runs them all again: on a Windows 11 machine with 3 lanes the
+      # 83 cases that ran there before the verifier's took over 25 minutes,
+      # and 129 run there now.
+      parity-timeout-minutes: 90
+      parity-platforms: '["linux-x64", "darwin-arm64", "win32-x64"]'
+      parity: >-
+        bun install --frozen-lockfile
+        && sh rs/parity/proof.sh "$RUSTIFY_PARITY" "$RUSTIFY_BIN_DIR/wtx"
+      # wtx.mjs reads no arguments: every command line, --help and --version
+      # included, starts the terminal server and keeps it running, so nothing
+      # it answers ever exits 0. The first command is therefore one that is
+      # meant to fail before the server listens: `[1]` says it ends with exit
+      # code 1. The binary hands it back, as it does every command line.
+      smoke: "[1] wtx"
+      smoke-expect: is out of range
+      # Each smoke command gets these. src/server.ts reads TERMINAL_WS_PORT
+      # with parseInt and hands it to Bun.serve, which refuses 99999 before it
+      # binds anything (ERR_OUT_OF_RANGE, the same on Linux, macOS and
+      # Windows), so wtx.mjs exits 1 without listening. Should it get past
+      # that all the same, it would bind to 192.0.2.1, an address reserved
+      # for documentation that no runner has, and fail there. Before that,
+      # the module writes its small zsh configuration under the runner's temp
+      # directory (koho-term-zshrc), as every start of wtx does.
+      # (A temp directory name no file system accepts would stop it earlier,
+      # but bun on Windows hangs with such a TEMP instead of failing.)
+      smoke-env: |
+        TERMINAL_WS_PORT=99999
+        TERMINAL_WS_HOST=192.0.2.1
+      # Handed back to wtx.mjs on every platform (rs/src/js_fallback.rs is
+      # rustify's JS fallback v6, which can say who answered, so [handback]
+      # is checked), which fails at Bun.serve with exit code 1 and never says
+      # it is listening: with no arguments, and with --version.
+      smoke-extra: |
+        [1] [handback] wtx => is out of range !> listening
+        [1] [handback] wtx --version => is out of range !> listening
