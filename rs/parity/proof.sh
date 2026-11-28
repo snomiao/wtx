@@ -35,10 +35,16 @@
 #      a command shim, which they do not build, and they are skipped); and on
 #      every system rs/parity/launcher.mjs installs it for real, with bun and
 #      with npm, from a stand-in registry (../npm/registry.mjs), and compares
-#      the first run and the second with wtx.mjs run directly, in a directory
-#      with .env files, a bunfig.toml preload and BUN_OPTIONS. A launcher
-#      older than v3 fails there. npm is the one on PATH, or PARITY_NPM_CLI
-#      (an npm-cli.js the driver's runtime runs) where there is none.
+#      the first run and the second with wtx.mjs run directly, in 14
+#      scenarios (13 on Windows): .env files, preloads of a bunfig.toml and
+#      of BUN_OPTIONS, one that deletes a variable of the user's and one that
+#      sets NODE_ENV, an empty environment, RUSTIFY_NO_LINK=1, ... (see
+#      there). A launcher older than v3 fails there, and so does the first
+#      cut of v3 (rustify 25ce88e), which took an empty environment, or one
+#      holding a variable a preload deleted, for a wrong read and passed
+#      bun's process.env on: give the parity.mjs of rustify's templates
+#      after it. npm is the one on PATH, or PARITY_NPM_CLI (an npm-cli.js
+#      the driver's runtime runs) where there is none.
 #
 # There is no run on a terminal (--tty): wtx writes only to its own stdout
 # and stderr, which rs/parity/drive.mjs reads through pipes, and what a
