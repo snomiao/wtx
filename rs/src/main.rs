@@ -17,6 +17,14 @@ fn native() -> bool {
 }
 
 fn main() {
+    // wtx is one long-running server and reads no arguments: every command
+    // line starts it. Once it listens, a request can no longer be handed
+    // back, so the binary can only take an invocation whose every request it
+    // would answer exactly as src/server.ts and Bun.serve do. It cannot yet
+    // (the screen rendering of @xterm/headless, bun's error pages, a PTY;
+    // see rs/src/lib.rs), so the whole invocation goes to wtx.mjs. The parts
+    // that are ported live in the library, tested against the TypeScript.
+    //
     // Arguments that are not valid UTF-8 are for the JavaScript to deal with.
     let args: Option<Vec<String>> = std::env::args_os().skip(1).map(|arg| arg.into_string().ok()).collect();
     if let Some(args) = args.filter(|_| native()) {

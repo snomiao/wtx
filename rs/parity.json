@@ -966,6 +966,9 @@
    "env": {
     "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"],\"cols\":120,\"rows\":40}},{\"wait\":\"k\",\"contains\":\"size 120x40\\r\\n\"},{\"ws\":\"?session=k&cols=100&rows=50\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"type\":\"size\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x50\\r\\n\"}},{\"ws\":\"?session=k&cols=150&rows=30\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"b\",\"until\":{\"type\":\"size\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"recv\":\"b\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"http\":\"GET /sessions\"}]"
    },
+   "skip": {
+    "win32": "a program under ConPTY sees no resize (bun's resize event does not fire), so the case waits out its timeouts and its program's life, and what it shows depends on timing"
+   },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
   {
@@ -974,6 +977,9 @@
    "env": {
     "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"size 80x24\\r\\n\"},{\"ws\":\"?session=k\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"type\":\"size\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":\\\"90\\\",\\\"rows\\\":20.9}\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 90x20\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":1,\\\"rows\\\":1}\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 10x2\\r\\n\"}},{\"send\":\"a\",\"text\":\"{\\\"type\\\":\\\"resize\\\",\\\"cols\\\":\\\"x\\\",\\\"rows\\\":5}\"},{\"recv\":\"a\",\"until\":{\"quiet\":300}},{\"close\":\"a\"},{\"until\":\"log\",\"contains\":\"disconnected\"},{\"http\":\"GET /sessions\"}]"
    },
+   "skip": {
+    "win32": "a program under ConPTY sees no resize (bun's resize event does not fire), so the case waits out its timeouts and its program's life, and what it shows depends on timing"
+   },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },
   {
@@ -981,6 +987,9 @@
    "args": [],
    "env": {
     "PARITY_STEPS": "[{\"http\":\"POST /sessions/k\",\"body\":{\"cmd\":[\"<BUN>\",\"-e\",\"const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\\\n'); process.stdout.on('resize', s); s(); setTimeout(() => {}, 30000)\"]}},{\"wait\":\"k\",\"contains\":\"size 80x24\\r\\n\"},{\"ws\":\"?session=k&cols=100&rows=30\",\"name\":\"a\"},{\"recv\":\"a\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"ws\":\"?session=k&cols=60&rows=20\",\"name\":\"b\"},{\"recv\":\"b\",\"until\":{\"type\":\"replay-end\"}},{\"recv\":\"a\",\"until\":{\"text\":\"size 60x20\\r\\n\"}},{\"recv\":\"b\",\"until\":{\"text\":\"size 60x20\\r\\n\"}},{\"close\":\"b\"},{\"recv\":\"a\",\"until\":{\"text\":\"size 100x30\\r\\n\"}},{\"http\":\"GET /sessions\"}]"
+   },
+   "skip": {
+    "win32": "a program under ConPTY sees no resize (bun's resize event does not fire), so the case waits out its timeouts and its program's life, and what it shows depends on timing"
    },
    "handback": "the binary hands every invocation back to wtx.mjs: the server is one process, and no part of it is ported (rs/src/main.rs)"
   },

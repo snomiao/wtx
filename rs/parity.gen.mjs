@@ -381,6 +381,7 @@ add("ws: output reaches every client, after the replay", [
 // bun prints its terminal's size at the start and whenever it changes (the
 // `resize` event; at SIGWINCH, process.stdout.columns is still the old size).
 const SIZE = "const s = () => process.stdout.write('size ' + process.stdout.columns + 'x' + process.stdout.rows + '\\n'); process.stdout.on('resize', s); s()";
+const NO_RESIZE = { win32: "a program under ConPTY sees no resize (bun's resize event does not fire), so the case waits out its timeouts and its program's life, and what it shows depends on timing" };
 add("size: the smallest of the clients, told to each", [
   create("k", SIZE, { cols: 120, rows: 40 }),
   wait("k", "size 120x40\r\n"),
@@ -392,7 +393,7 @@ add("size: the smallest of the clients, told to each", [
   { recv: "a", until: { text: "size 100x30\r\n" } },
   { recv: "b", until: { text: "size 100x30\r\n" } },
   LIST,
-]);
+], { skip: NO_RESIZE });
 add("size: resize messages, clamped and floored; the last client's size stays", [
   create("k", SIZE),
   wait("k", "size 80x24\r\n"),
@@ -407,7 +408,7 @@ add("size: resize messages, clamped and floored; the last client's size stays", 
   { close: "a" },
   { until: "log", contains: "disconnected" },
   LIST,
-]);
+], { skip: NO_RESIZE });
 add("size: a client leaving lets the others grow", [
   create("k", SIZE),
   wait("k", "size 80x24\r\n"),
@@ -419,7 +420,7 @@ add("size: a client leaving lets the others grow", [
   { close: "b" },
   { recv: "a", until: { text: "size 100x30\r\n" } },
   LIST,
-]);
+], { skip: NO_RESIZE });
 
 // ═══════════════════════════ OSC 7, queries, exit ═══════════════════════════
 
