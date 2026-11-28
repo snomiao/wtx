@@ -35,16 +35,26 @@
 #      a command shim, which they do not build, and they are skipped); and on
 #      every system rs/parity/launcher.mjs installs it for real, with bun and
 #      with npm, from a stand-in registry (../npm/registry.mjs), and compares
-#      the first run and the second with wtx.mjs run directly, in 14
-#      scenarios (13 on Windows): .env files, preloads of a bunfig.toml and
-#      of BUN_OPTIONS, one that deletes a variable of the user's and one that
-#      sets NODE_ENV, an empty environment, RUSTIFY_NO_LINK=1, ... (see
-#      there). A launcher older than v3 fails there, and so does the first
-#      cut of v3 (rustify 25ce88e), which took an empty environment, or one
-#      holding a variable a preload deleted, for a wrong read and passed
-#      bun's process.env on: give the parity.mjs of rustify's templates
-#      after it. npm is the one on PATH, or PARITY_NPM_CLI (an npm-cli.js
-#      the driver's runtime runs) where there is none.
+#      the first run and the second with wtx.mjs run directly, in 18
+#      scenarios (17 on Windows): .env files, preloads of a bunfig.toml and
+#      of BUN_OPTIONS, one that deletes a variable of the user's, one that
+#      sets NODE_ENV, one that deletes process.versions.bun and one that puts
+#      its own object in process.env's place, an empty environment,
+#      RUSTIFY_NO_LINK=1, ... (see there); and in 3 of them with pnpm where
+#      there is one. A launcher older than v3 fails there, and so does the
+#      first cut of v3 (rustify 25ce88e), which took an empty environment,
+#      or one holding a variable a preload deleted, for a wrong read and
+#      passed bun's process.env on. So do rustify's templates up to now
+#      (cc50aec, releases/v1 a629a0a, main 23f6df4): the scenarios of a
+#      preload that deletes process.versions.bun (the launcher then passes
+#      process.env on, .env files and all), before 23f6df4 the one of an
+#      object in process.env's place that throws when asked, and on Linux
+#      and macOS pnpm's second run (the launcher has put the binary where
+#      pnpm's shim runs `bun <file>`); each failure says what rustify must
+#      change. npm is the one on PATH, or PARITY_NPM_CLI (an npm-cli.js the
+#      driver's runtime runs) where there is none; pnpm is PARITY_PNPM_CLI
+#      (a pnpm.cjs or pnpm.mjs that bun runs), or the one on PATH on Linux
+#      and macOS.
 #
 # There is no run on a terminal (--tty): wtx writes only to its own stdout
 # and stderr, which rs/parity/drive.mjs reads through pipes, and what a

@@ -18,8 +18,9 @@
 // wtx.mjs is the command. What nothing can undo is a preload that has
 // already run in the launcher.
 //
-// So, for each installer (bun and npm) and each scenario (below), the
-// package is installed afresh from a stand-in registry: rustify's
+// So, for each installer (bun, npm, and pnpm where there is one) and each
+// scenario (below), the package is installed afresh from a stand-in
+// registry: rustify's
 // registry.mjs, run in this process with no upstream, holding the package
 // (published with pack.mjs) and its two dependencies (bun-pty and
 // @xterm/headless, packed from this checkout's node_modules) and nothing
@@ -30,7 +31,9 @@
 //     line or the package managers' shims;
 //   - the installed command, for its first run (the launcher);
 //   - and the installed command again: the binary, now in the launcher's
-//     place, or the launcher again where it cannot link.
+//     place, or the launcher again where it cannot link. With bun and npm
+//     the first run must have put the binary there, but under
+//     RUSTIFY_NO_LINK=1 (on Windows: the shim then starts <command>.exe).
 // Each run starts the server on 127.0.0.1 and a free port, creates one
 // session whose program writes its environment to a file (env, through
 // /bin/sh; on Windows node, writing process.env) and stays, waits for the
@@ -64,7 +67,34 @@
 // NODE_ENV, with a .env that does not; every .env file bun reads here, and
 // two it does not, with allow-listed names (GH_TOKEN, GITHUB_TOKEN, EDITOR,
 // XDG_*, BUN_*, GIT_*, ...) and secrets in each; BUN_OPTIONS=--env-file; the
-// user's own WTX_PACKAGE_ROOT; a preload that sets a long process.title.
+// user's own WTX_PACKAGE_ROOT; a preload that sets a long process.title; a
+// bunfig.toml preload that deletes process.versions.bun, also with
+// RUSTIFY_NO_LINK=1, and a BUN_OPTIONS one; a bunfig.toml preload that puts
+// in process.env's place an object that throws when asked `name in
+// process.env`. pnpm installs the package in the first scenario, the one with
+// RUSTIFY_NO_LINK=1 and the one of every .env file: its command is a shim of
+// its own on every system, on Linux and macOS an sh script that runs `bun
+// <the package>/rustify/wtx`, as the launcher's #! line says, and on Windows
+// a .cmd that runs bun so with .JS taken out of PATHEXT, which the launcher
+// does not repoint; wtx.mjs is started there through the same .cmd naming
+// wtx.mjs, as pnpm installs the published command.
+//
+// Where a scenario fails on a fault of rustify's launcher that is known
+// (the verifier's, 2026-11-28), its failure says which and what rustify must
+// change, from the packed launcher's text or, for pnpm, from what the first
+// run left; it still fails. Known so far: a launcher that reads nothing when
+// a preload has deleted process.versions.bun and then passes bun's
+// process.env on (rustify's templates at cc50aec, releases/v1 a629a0a and
+// main 23f6df4); one that asks `name in process.env` inside the try that
+// guards the read (cc50aec and a629a0a; not 23f6df4); and one that, on Linux
+// and macOS, puts the binary in the place of the file pnpm's shim hands to
+// bun, which bun cannot run (all three). A copy of rustify's templates at
+// 23f6df4 with the first and the last repaired (no process.versions.bun
+// check; on Linux and macOS linking only where a bin directory of npm's or
+// bun's holds the command as a symbolic link to the launcher) passed every
+// scenario on Linux x64, macOS arm64 and Windows x64, with bun, npm and pnpm
+// (2026-11-28).
+//
 // Where a run through the launcher does not do what wtx.mjs does, as
 // rustify documents it, the difference itself is asserted, so that a bun or
 // a launcher that changes it is noticed:
@@ -110,8 +140,12 @@
 // npm-cli.js beside node.exe, since npm.cmd needs a shell), or
 // PARITY_NPM_CLI, an npm-cli.js that this script's runtime runs (for a
 // machine without npm); with neither, the npm installs are skipped, and it
-// says so. It prints one line per scenario and, at the end, how many passed,
-// and exits 1 unless all did.
+// says so. pnpm is PARITY_PNPM_CLI, a pnpm.cjs or pnpm.mjs that bun runs
+// (pnpm 11 wants node 22.13 or later), or else the pnpm on PATH where it
+// runs (Linux and macOS); with neither, the pnpm installs are skipped, and
+// it says so. pnpm keeps its global packages under PNPM_HOME, here a
+// directory of the install's own. It prints one line per scenario and, at
+// the end, how many passed, and exits 1 unless all did.
 
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -138,7 +172,8 @@ const BUN = isWindows ? "bun" : spawnSync("bun", ["-e", "process.stdout.write(pr
 const DEFAULT_BUN = !isWindows && spawnSync("/usr/bin/env", ["bun", "--version"], { env: {}, stdio: "ignore" }).status === 0;
 
 // The launcher pack.mjs put in the package, and its version.
-const version = Number(/rustify launcher v(\d+)/.exec(fs.readFileSync(path.join(dist, "main", "rustify", "wtx"), "utf8").slice(0, 400))?.[1] ?? 0);
+const launcherText = fs.readFileSync(path.join(dist, "main", "rustify", "wtx"), "utf8");
+const version = Number(/rustify launcher v(\d+)/.exec(launcherText.slice(0, 400))?.[1] ?? 0);
 if (version < 3) {
   console.log(
     `FAILED: the package's launcher is v${version || "?"} (from ${templates}). Before v3 it starts the binary with bun's process.env, ` +
@@ -147,6 +182,21 @@ if (version < 3) {
   );
   process.exit(1);
 }
+
+// Faults of rustify's launcher that scenarios below show, found in the
+// packed launcher's text: a scenario that fails says what rustify must
+// change. (Which scenario shows which: its `fault`.)
+const FAULTS = {
+  versions: /if \(!process\.versions\.bun\) return null;/.test(launcherText)
+    ? "the packed launcher's startEntries() begins with `if (!process.versions.bun) return null;` (rustify's templates/npm/launcher.cjs), so after a preload " +
+      "that deletes process.versions.bun it reads nothing, and binaryEnvironment() passes bun's process.env on, .env files included. rustify must remove that line: " +
+      "under node bun:ffi throws on macOS and Windows, so process.env is used there as now, and /proc/self/environ is right under either runtime"
+    : null,
+  askedInTry: /try \{\s*if \(entries\) env = environmentOf\(entries, windows\);\s*if \(env\) for \(const name of TAKEN\) if \(!\(name in process\.env\)\)/.test(launcherText)
+    ? "the packed launcher's binaryEnvironment() asks `name in process.env` of the IPC variables inside the try that guards the read (rustify's " +
+      "templates/npm/launcher.cjs before 23f6df4), so a process.env that throws there makes it pass process.env on, .env files included; rustify 23f6df4 asks outside it"
+    : null,
+};
 
 const work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wtx-launcher-")));
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -293,22 +343,92 @@ const besideNode = path.join(path.dirname(process.execPath), "node_modules", "np
 const npmCli = process.env.PARITY_NPM_CLI || (isWindows && !process.versions.bun && fs.existsSync(besideNode) ? besideNode : null);
 const hasNpm = npmCli ? fs.existsSync(npmCli) : !isWindows && spawnSync("npm", ["--version"], { stdio: "ignore" }).status === 0;
 const npm = (args, options) => (npmCli ? run(process.execPath, [npmCli, ...args], options) : run("npm", args, options));
+// pnpm 11 wants node 22.13 or later; bun runs it anywhere.
+const pnpmCli = process.env.PARITY_PNPM_CLI || null;
+const pnpmProbe = pnpmCli || isWindows ? null : spawnSync("pnpm", ["--version"], { encoding: "utf8", env: toolEnv, cwd: work });
+const hasPnpm = pnpmCli ? fs.existsSync(pnpmCli) : pnpmProbe?.status === 0;
+const pnpm = (args, options) => (pnpmCli ? run("bun", [pnpmCli, ...args], options) : run("pnpm", args, options));
+
+/** The package as `<dir>/node_modules/@snomiao/wtx`, `dir` being `from` or below it, at most `depth`
+ *  directories down and not inside a node_modules (all in a directory of this script's own). */
+function findPackage(from, depth) {
+  const pkg = path.join(from, "node_modules", "@snomiao", "wtx");
+  if (fs.existsSync(path.join(pkg, "wtx.mjs"))) return pkg;
+  if (depth === 0) return null;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(from, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === "node_modules") continue;
+    const found = findPackage(path.join(from, entry.name), depth - 1);
+    if (found) return found;
+  }
+  return null;
+}
 
 /** Installs the package afresh into `dir`: how to start the command, and where the package is. */
 async function install(installer, dir) {
+  if (installer === "pnpm") {
+    // pnpm puts its global packages and the store under PNPM_HOME, and the
+    // commands in PNPM_HOME/bin (pnpm 11; PNPM_HOME itself before), which
+    // it wants on PATH.
+    const env = { ...toolEnv, PNPM_HOME: dir, PATH: [path.join(dir, "bin"), dir, toolEnv.PATH].join(path.delimiter) };
+    for (const name of ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"]) env[name] = path.join(dir, "xdg", name);
+    const done = await pnpm(["add", "-g", NAME, "--registry", registry.url], { env, cwd: work });
+    if (done.status !== 0) throw new Error(`pnpm add -g failed:\n${done.output}`);
+    const shim = [path.join(dir, "bin"), dir].map((bin) => path.join(bin, isWindows ? "wtx.cmd" : "wtx")).find((file) => fs.existsSync(file));
+    const pkg = findPackage(path.join(dir, "global"), 3);
+    if (!shim || !pkg) throw new Error(`pnpm add -g wrote no command or no package where looked for:\n${done.output}`);
+    if (isWindows) {
+      // pnpm's wtx.cmd starts the launcher with .JS taken out of PATHEXT
+      // (where no bun.exe is beside it), and so would its shim of the
+      // published package, whose bin is wtx.mjs with the same #! line: that
+      // shim is this one naming wtx.mjs, and wtx.mjs is started through it.
+      const text = fs.readFileSync(shim, "utf8");
+      const published = text.replaceAll('\\rustify\\wtx"', '\\wtx.mjs"');
+      if (published === text || published.includes("rustify")) throw new Error(`pnpm's wtx.cmd is not as expected:\n${text}`);
+      const direct = path.join(path.dirname(shim), "wtx-published.cmd");
+      fs.writeFileSync(direct, published);
+      const cmd = process.env.ComSpec || "cmd.exe";
+      return { start: [cmd, ["/d", "/s", "/c", `"${shim}"`]], direct: [cmd, ["/d", "/s", "/c", `"${direct}"`]], viaCmd: true, shim, pkg };
+    }
+    // Its sh script runs `exec bun "<file>"`, as `bun <file>` does.
+    return { start: [shim, []], shim, pkg };
+  }
   if (installer === "bun") {
     const done = await run("bun", ["i", "-g", NAME, "--registry", registry.url], { env: { ...toolEnv, BUN_INSTALL: dir }, cwd: work });
     if (done.status !== 0) throw new Error(`bun i -g failed:\n${done.output}`);
-    return { start: [path.join(dir, "bin", isWindows ? "wtx.exe" : "wtx"), []], pkg: path.join(dir, "install", "global", "node_modules", "@snomiao", "wtx") };
+    const shim = isWindows ? path.join(dir, "bin", "wtx.bunx") : null;
+    return { start: [path.join(dir, "bin", isWindows ? "wtx.exe" : "wtx"), []], shim, pkg: path.join(dir, "install", "global", "node_modules", "@snomiao", "wtx") };
   }
   const done = await npm(["i", "-g", "--prefix", dir, NAME, "--registry", registry.url], { env: toolEnv, cwd: work });
   if (done.status !== 0) throw new Error(`npm i -g failed:\n${done.output}`);
   if (isWindows) {
     // As a command prompt starts npm's wtx.cmd.
     const cmd = path.join(dir, "wtx.cmd");
-    return { start: [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${cmd}"`]], viaCmd: true, pkg: path.join(dir, "node_modules", "@snomiao", "wtx") };
+    return { start: [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${cmd}"`]], viaCmd: true, shim: cmd, pkg: path.join(dir, "node_modules", "@snomiao", "wtx") };
   }
-  return { start: [path.join(dir, "bin", "wtx"), []], pkg: path.join(dir, "lib", "node_modules", "@snomiao", "wtx") };
+  return { start: [path.join(dir, "bin", "wtx"), []], shim: null, pkg: path.join(dir, "lib", "node_modules", "@snomiao", "wtx") };
+}
+
+/** Whether the installed command still starts the launcher: on Linux and macOS whether the
+ *  package's rustify/wtx is still a script, on Windows whether the shim does not start the native
+ *  copy beside it (rustify\wtx.exe) yet. */
+function startsLauncher(installed) {
+  if (!isWindows) return fs.readFileSync(path.join(installed.pkg, "rustify", "wtx")).subarray(0, 2).toString("latin1") === "#!";
+  const shim = fs.readFileSync(installed.shim);
+  const text = installed.shim.endsWith(".bunx") ? shim.toString("utf16le") : shim.toString("utf8");
+  return !/rustify[\\/]wtx\.exe/i.test(text);
+}
+
+/** What pnpm's shim on Linux and macOS hands to a runtime: `exec bun "<file>"`, as its text says. */
+function handedToRuntime(installed) {
+  if (isWindows || !installed.shim) return null;
+  const text = fs.readFileSync(installed.shim, "utf8");
+  return /exec "?(?:\$basedir\/)?(bun|node)"? +"[^"\n]*rustify\/wtx"/.exec(text)?.[1] ?? null;
 }
 
 // ── one run of the server ───────────────────────────────────────────────────
@@ -468,6 +588,10 @@ async function serve(start, verbatim, scenario) {
 const SETS = (name) => `process.env.LC_FROM_PRELOAD_${name} = "allowed";\nprocess.env.SECRET_FROM_PRELOAD_${name} = "secret-from-preload-${name}";\n`;
 /** The same, after deleting DROP_ME, a variable the command was started with. */
 const DROPS = (name) => `delete process.env.DROP_ME;\n${SETS(name)}`;
+/** The same, after deleting process.versions.bun (as a preload may, so that a library takes bun for node). */
+const UNBUN = (name) => `delete process.versions.bun;\n${SETS(name)}`;
+/** The same, after putting in process.env's place an object that throws when asked `name in process.env`. */
+const THROWS = (name) => `const real = process.env;\nprocess.env = new Proxy(real, { has() { throw new Error("no in"); } });\n${SETS(name)}`;
 /** A preload that says where it ran (the file bun was started with), logs it, and does `body`. */
 const preload = (name, log, body = SETS(name)) =>
   'import fs from "node:fs";\nimport path from "node:path";\n' +
@@ -540,8 +664,8 @@ const SECRET = /^(secret|key)-/;
 const listedIn = (files, read) => read.flatMap((file) => Object.keys(files[file]).filter((name) => LISTED.test(name)).map((name) => `${file} ${name}`));
 
 const scenarios = [
-  { name: "a .env, .env.production, a bunfig.toml preload and BUN_OPTIONS with a preload", dotenv: ENV, files: bunfig(), env: options() },
-  { name: "the same where the launcher cannot link (RUSTIFY_NO_LINK=1)", dotenv: ENV, files: bunfig(), env: (d) => ({ ...options()(d), RUSTIFY_NO_LINK: "1" }), noLink: true },
+  { name: "a .env, .env.production, a bunfig.toml preload and BUN_OPTIONS with a preload", dotenv: ENV, files: bunfig(), env: options(), pnpm: true },
+  { name: "the same where the launcher cannot link (RUSTIFY_NO_LINK=1)", dotenv: ENV, files: bunfig(), env: (d) => ({ ...options()(d), RUSTIFY_NO_LINK: "1" }), noLink: true, pnpm: true },
   { name: "a .env, .env.production and BUN_OPTIONS with a preload, no bunfig.toml", dotenv: ENV, env: options() },
   { name: "a .env, .env.production and BUN_OPTIONS without a preload", dotenv: ENV, env: () => ({ BUN_OPTIONS: "--smol" }) },
   { name: "a bunfig.toml preload that deletes DROP_ME, a variable the command was started with", dotenv: ENV, files: bunfig(DROPS), env: () => ({ DROP_ME: "exported" }), drops: true },
@@ -571,7 +695,7 @@ const scenarios = [
           `and not .env.development, where wtx.mjs run directly read .env.development, as rustify documents for Windows (bun ${BUN_VERSION})`,
       },
   },
-  { name: "every .env file bun reads here, and two it does not, with allow-listed names and secrets", dotenv: EVERY, reach: listedIn(EVERY, [".env", ".env.local", ".env.development", ".env.development.local"]) },
+  { name: "every .env file bun reads here, and two it does not, with allow-listed names and secrets", dotenv: EVERY, reach: listedIn(EVERY, [".env", ".env.local", ".env.development", ".env.development.local"]), pnpm: true },
   {
     name: "BUN_OPTIONS=--env-file, with an allow-listed name, NODE_ENV and a secret",
     dotenv: ENV_FILE,
@@ -594,6 +718,12 @@ const scenarios = [
     }),
   },
   { name: "a bunfig.toml preload that sets a long process.title", dotenv: ENV, files: bunfig((name) => `${SETS(name)}process.title = "t".repeat(4000);\n`) },
+  // The verifier's (2026-11-28): a launcher that reads nothing without process.versions.bun, or
+  // that asks process.env inside the try that guards the read, passes bun's process.env on.
+  { name: "a bunfig.toml preload that deletes process.versions.bun", dotenv: ENV, files: bunfig(UNBUN), fault: "versions" },
+  { name: "the same with RUSTIFY_NO_LINK=1", dotenv: ENV, files: bunfig(UNBUN), env: () => ({ RUSTIFY_NO_LINK: "1" }), noLink: true, fault: "versions" },
+  { name: "a BUN_OPTIONS preload that deletes process.versions.bun", dotenv: ENV, env: options(UNBUN), fault: "versions" },
+  { name: "a bunfig.toml preload that puts in process.env's place an object that throws when asked `name in process.env`", dotenv: ENV, files: bunfig(THROWS), fault: "askedInTry" },
 ];
 for (const scenario of scenarios) {
   scenario.reach ??= listedIn(scenario.dotenv, [".env", ".env.development"]);
@@ -684,7 +814,13 @@ function compare(label, expected, got, exempt = []) {
     const [a, b] = key === "sessionEnv" ? [without(expected[key]), without(got[key])] : [expected[key], got[key]];
     if (a === b) continue;
     if (key !== "sessionEnv") {
-      problems.push(`${label}: ${key} differs\n      wtx.mjs: ${JSON.stringify(a)}\n      ${label}: ${JSON.stringify(b)}`);
+      // At most 1000 characters of each (a binary that bun was given to run prints itself).
+      const cut = (text) => (text.length > 1000 ? `${JSON.stringify(text.slice(0, 1000))} and ${text.length - 1000} characters more` : JSON.stringify(text));
+      problems.push(`${label}: ${key} differs\n      wtx.mjs: ${cut(a)}\n      ${label}: ${cut(b)}`);
+      continue;
+    }
+    if (b === "(none)") {
+      problems.push(`${label}: there was no session's environment to compare`);
       continue;
     }
     // Names, and only the values this script wrote: the rest may be the machine's own.
@@ -696,17 +832,31 @@ function compare(label, expected, got, exempt = []) {
   return problems;
 }
 
-const installers = hasNpm ? ["bun", "npm"] : ["bun"];
+const installers = ["bun", ...(hasNpm ? ["npm"] : []), ...(hasPnpm ? ["pnpm"] : [])];
 if (!hasNpm) console.log("  skip    npm: not on this machine (nor PARITY_NPM_CLI)");
+if (!hasPnpm) {
+  let why = `the pnpm on PATH does not run (${JSON.stringify(`${pnpmProbe?.stderr || ""}${pnpmProbe?.stdout || ""}`.trim().split("\n")[0])})`;
+  if (pnpmCli) why = `PARITY_PNPM_CLI names no file (${pnpmCli})`;
+  else if (!pnpmProbe) why = "on Windows only PARITY_PNPM_CLI is tried (pnpm.cmd needs a shell)";
+  else if (pnpmProbe.error) why = `not on this machine (${pnpmProbe.error.code})`;
+  console.log(`  skip    pnpm: ${why}; PARITY_PNPM_CLI names a pnpm.cjs or pnpm.mjs that bun runs`);
+}
 for (const scenario of scenarios) if (scenario.skip) console.log(`  skip    ${scenario.name}: ${scenario.skip}`);
 const active = scenarios.filter((scenario) => !scenario.skip);
 let count = 0;
 let passed = 0;
+// Failures on a known fault of rustify's launcher (see FAULTS), which say so.
+let known = 0;
+const PNPM_FAULT =
+  "pnpm's command is an sh script that runs `bun <the package>/rustify/wtx`, as the launcher's #! line says (pnpm links a command only with its hoisted node-linker), " +
+  "and the launcher's first run put the binary in that file's place, which bun cannot run (`error: Unexpected`, exit 1): the command no longer starts. " +
+  "rustify's launcher (templates/npm/launcher.cjs, prepare()) must not link over itself on Linux and macOS where it cannot see that the system starts the file by its #! line";
 // Of the .env files, over every session: the names whose values reached one, and how many sessions.
 const reachedNames = new Set();
 let sessions = 0;
 for (const installer of installers) {
   for (const [index, scenario] of active.entries()) {
+    if (installer === "pnpm" && !scenario.pnpm) continue;
     const caseDir = path.join(work, `${installer}-${index}`);
     fs.mkdirSync(caseDir, { recursive: true });
     const title = `${installer}: ${scenario.name}`;
@@ -714,25 +864,39 @@ for (const installer of installers) {
     const notes = [];
     const cased = new Set();
     const differed = new Set();
+    const causes = new Set();
     try {
       const installed = await install(installer, path.join(caseDir, "inst"));
       // wtx.mjs as the published command starts it; through a command prompt
       // where npm's wtx.cmd starts the installed command (cmd.exe adds PROMPT
-      // to what its programs get); from an empty environment by bun's path,
-      // and also through its #! line, as the system starts the published
-      // command.
+      // to what its programs get), and through pnpm's shim for it where
+      // pnpm's starts it (see install); from an empty environment by bun's
+      // path, and also through its #! line, as the system starts the
+      // published command.
       const script = path.join(installed.pkg, "wtx.mjs");
       const cmd = process.env.ComSpec || "cmd.exe";
-      const direct = await serve(installed.viaCmd ? [cmd, ["/d", "/s", "/c", `""bun" "${script}""`]] : [scenario.empty ? BUN : "bun", [script]], installed.viaCmd, scenario);
+      const direct = await serve(installed.direct ?? (installed.viaCmd ? [cmd, ["/d", "/s", "/c", `""bun" "${script}""`]] : [scenario.empty ? BUN : "bun", [script]]), installed.viaCmd, scenario);
       const shebang = scenario.empty ? await serve([script, []], false, scenario) : null;
       const seenAll = [direct, shebang].filter(Boolean);
       problems.push(...directProblems(variables(direct.sessionEnv), scenario).map((p) => `wtx.mjs: the session ${p}`));
       if (shebang) problems.push(...leaks(variables(shebang.sessionEnv), scenario).map((p) => `wtx.mjs through its #! line: the session ${p}`));
       const reached = [...variables(direct.sessionEnv).keys()].filter((name) => /^SECRET_FROM_PRELOAD_/i.test(name));
       if (direct.preloads !== "(none)" && direct.preloads.split("\n").some((line) => line && !/ wtx\.mjs$/.test(line))) problems.push(`wtx.mjs: a preload ran elsewhere: ${direct.preloads}`);
+      let linked = false;
+      let ranBinary = null;
       for (const run of [1, 2]) {
-        const throughLauncher = run === 1 || Boolean(scenario.noLink);
-        const label = run === 1 ? "first run" : scenario.noLink ? "second run (the launcher again)" : "second run (the binary)";
+        if (run === 2) {
+          // What the first run left: with bun and npm the binary in the
+          // launcher's place, but where it may not link.
+          linked = !startsLauncher(installed);
+          ranBinary = linked ? handedToRuntime(installed) : null;
+          if (installer !== "pnpm" && linked === Boolean(scenario.noLink)) {
+            problems.push(scenario.noLink ? "the first run put the binary in the launcher's place, under RUSTIFY_NO_LINK=1" : "the first run did not put the binary in the launcher's place");
+          }
+          if (installer === "pnpm") notes.push(ranBinary ? `pnpm's shim then ran \`${ranBinary} <the binary>\`` : linked ? "pnpm's shim then started the binary" : "pnpm's shim then started the launcher again");
+        }
+        const throughLauncher = run === 1 || !linked;
+        const label = run === 1 ? "first run" : !linked ? "second run (the launcher again)" : ranBinary ? `second run (${ranBinary} <the binary>, as pnpm's shim runs it)` : "second run (the binary)";
         // From an empty environment the launcher is started by bun's path, the binary as the system starts it.
         const seen = await serve(scenario.empty && throughLauncher ? [BUN, [installed.start[0]]] : installed.start, installed.viaCmd, scenario);
         seenAll.push(seen);
@@ -774,6 +938,7 @@ for (const installer of installers) {
         if (printed.join() !== logged.join()) problems.push(`${label}: the launcher's preloads printed ${JSON.stringify(printed)} but logged ${JSON.stringify(logged)}`);
         if (!throughLauncher && printed.length) problems.push(`${label}: a preload ran in the launcher`);
         if (run === 1) notes.push(printed.length ? `ran once more, in the launcher: ${printed.join(", ")}` : "no preload ran in the launcher");
+        if (run === 2 && ranBinary && problems.some((p) => p.startsWith(label))) causes.add(PNPM_FAULT);
       }
       if (scenario.empty) {
         notes.push(
@@ -796,7 +961,11 @@ for (const installer of installers) {
     }
     count++;
     if (problems.length) {
-      console.log(`  FAILED  ${title}\n    ${problems.join("\n    ")}`);
+      // A fault of the launcher shows on the runs through it.
+      const onLauncher = problems.some((p) => p.startsWith("first run") || p.startsWith("second run (the launcher again)"));
+      if (scenario.fault && FAULTS[scenario.fault] && onLauncher) causes.add(FAULTS[scenario.fault]);
+      if (causes.size) known++;
+      console.log(`  FAILED  ${title}\n    ${problems.join("\n    ")}${[...causes].map((cause) => `\n    known fault of rustify's launcher: ${cause}`).join("")}`);
     } else {
       passed++;
       console.log(`  ok      ${title}; ${notes.join("; ")}`);
@@ -811,5 +980,8 @@ for (const installer of installers) {
       `on wtx.mjs's allow-list; ${off.length ? `and of ${off.join(", ")}, which are not (FAILED above)` : "and nothing of the other names"}`,
   );
 }
-console.log(`${passed} of ${count} installs: the first run and the second as wtx.mjs run directly, but for the launcher's own run of a preload and where said`);
+console.log(
+  `${passed} of ${count} installs: the first run and the second as wtx.mjs run directly, but for the launcher's own run of a preload and where said` +
+    (passed === count ? "" : `; ${count - passed} failed, ${known} of them on a known fault of rustify's launcher (said there)`),
+);
 finish(passed === count ? 0 : 1);
