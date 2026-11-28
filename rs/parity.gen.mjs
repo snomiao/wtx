@@ -32,6 +32,13 @@
 // tested beside it, as Rust modules against outputs recorded from the
 // TypeScript (rs/src/testdata, rs/parity/record.ts).
 //
+// The one thing the binary answers itself is not here: a run that rustify's
+// npm launcher started under bun, after bun had applied a .env, a bunfig.toml
+// or BUN_OPTIONS of the working directory (rs/src/launcher.rs). It starts
+// nothing then, where wtx.mjs would start the server, so no run of wtx.mjs
+// can be compared with it; rs/parity/launcher.mjs checks its text. The
+// "v-install" cases here are the launcher's runs that are handed back.
+//
 // Every case has its own empty HOME and temp directory (the runner's), and
 // TMPDIR there holds the koho-term-zshrc directory wtx writes at start-up.
 // No case reaches the network: the server listens on 127.0.0.1 (or fails to
@@ -484,9 +491,11 @@ add("exit: deleting a session tells its clients", [create("k", QUIET), ...attach
 // ═══════════════════════════ the session's environment ═══════════════════════════
 
 // wtx means to pass a session only the variables of an allow-list (scrubSecrets),
-// but bun-pty starts the program with the server's whole environment and adds the
-// allowed ones on top, so every variable reaches it. /usr/bin/env through sh shows
-// what the program got (bun would load the .env of its directory itself).
+// but bun-pty starts the program with the server's real environment, the one it
+// was started with, and adds the allowed ones on top: so every variable of that
+// reaches it. What bun read from .env is not in it (bun keeps that in process.env),
+// so of a .env only the allowed names reach a session. /usr/bin/env through sh
+// shows what the program got.
 const ENV_DUMP = ["/bin/sh", "-c", "env | LC_ALL=C sort | grep -v -e '^_=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD='; echo END; exec sleep 30"];
 const NO_BIN_SH = { win32: "there is no /bin/sh for bun-pty to start on Windows" };
 const envCase = (name, o) => add(`env: ${name}`, [{ http: "POST /sessions/k", body: { cmd: ENV_DUMP } }, wait("k", "END\r\n"), { http: "GET /sessions/k/buffer" }], { skip: NO_BIN_SH, ...o });
@@ -512,8 +521,178 @@ envCase("every variable of the server reaches a session, wtx's own on top", {
     lc_lower: "dropped",
   },
 });
-envCase("what bun loads from .env reaches a session too", { files: { ".env": "PARITY_SECRET=from-env-file\nLC_FROM_FILE=passes\n" } });
+envCase("what bun loads from .env does not reach a session, but for names on the allow-list", { files: { ".env": "PARITY_SECRET=from-env-file\nLC_FROM_FILE=passes\n" } });
 envCase("PROMPT_COMMAND without one of the server's", { env: { PROMPT_COMMAND: null } });
+
+// ═══════════════════════════ an independent verifier's cases (v-) ═══════════════════════════
+
+// Written by the port's verifier, aimed at what the cases above may have
+// missed; here as they ran, except where said. Start-ups that end at
+// Bun.serve (TERMINAL_WS_PORT=99999) run with the runner's own streams
+// (PARITY_DIRECT, see rs/parity/drive.mjs): a terminal, stdin.
+const NO_WIN = { win32: "POSIX paths, a #! script and /bin/sh" };
+const DEAD = { TERMINAL_WS_PORT: "99999" };
+const direct = (name, o = {}) => add(name, [], { ...o, env: { ...DEAD, PARITY_DIRECT: "1", ...(o.env || {}) } });
+
+// ── the runtime the binary hands wtx.mjs to: as the system starts wtx.mjs ──
+// The TypeScript's side is wtx.mjs itself, as npm installs it (PARITY_AS_SCRIPT),
+// so that `env` looks for bun on the server's PATH (PARITY_PATH; the setup
+// lines keep the runner's, and {PATH} in it stands for that).
+const asScript = (name, o) => direct(`v-path: ${name}`, { ...o, env: { PARITY_AS_SCRIPT: "1", ...o.env }, skip: NO_WIN });
+const nodeOnly = ['mkdir -p "<ROOT>/nodeonly" && ln -s "$(command -v node)" "<ROOT>/nodeonly/node"'];
+asScript("only node on PATH, no bun", { env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly });
+asScript("only node on PATH, with --help", { args: ["--help"], env: { PARITY_PATH: "<ROOT>/nodeonly" }, setup: nodeOnly });
+asScript("neither bun nor node on PATH", { env: { PARITY_PATH: "<ROOT>/empty" } });
+asScript("PATH unset", { env: { PARITY_PATH_UNSET: "1" } });
+/** A bun on PATH that logs how it was started and starts the real one. */
+const shim = (dir) => `mkdir -p "${dir}" && printf '#!/bin/sh\\necho "$0 $*" >> "%s"\\nexec "%s" "$@"\\n' "<ROOT>/bun.log" "$(command -v bun)" > "${dir}/bun" && chmod +x "${dir}/bun"`;
+const BUN_LOG = ['cat "<ROOT>/bun.log"'];
+asScript("a bun wrapper first on PATH sees the same command line", { args: ["--help", "x y", "é"], env: { PARITY_PATH: "<ROOT>/shim:{PATH}" }, setup: [shim("<ROOT>/shim")], after: BUN_LOG });
+asScript("a bun that is not executable comes first on PATH", { env: { PARITY_PATH: "<ROOT>/noexec:{PATH}" }, setup: ['mkdir -p "<ROOT>/noexec" && echo "echo wrong bun" > "<ROOT>/noexec/bun" && chmod 644 "<ROOT>/noexec/bun"'] });
+asScript("a directory named bun comes first on PATH", { env: { PARITY_PATH: "<ROOT>/dirbun:{PATH}" }, setup: ['mkdir -p "<ROOT>/dirbun/bun"'] });
+asScript("a bun wrapper in a relative PATH entry", { env: { PARITY_PATH: "rel:{PATH}" }, setup: [shim("rel")], after: BUN_LOG });
+asScript("an empty PATH entry finds a bun wrapper in the working directory", { env: { PARITY_PATH: ":{PATH}" }, setup: [shim(".")], after: BUN_LOG });
+asScript("a bun on PATH that is a script without #!", { env: { PARITY_PATH: "<ROOT>/nosb:{PATH}" }, setup: ['mkdir -p "<ROOT>/nosb" && printf \'echo "no shebang bun $*"\\nexit 7\\n\' > "<ROOT>/nosb/bun" && chmod +x "<ROOT>/nosb/bun"'] });
+
+// ── command lines and what bun reads before the program ──
+const start = (name, args, o = {}) => direct(`v-start: ${name}`, { ...o, args });
+start("help as the only word", ["help"]);
+start("-h", ["-h"]);
+start("--version --help", ["--version", "--help"]);
+start("an empty argument", [""]);
+start("non-ASCII arguments", ["héllo", "日本語", "😀"]);
+start("-- and -", ["--", "-"]);
+start("arguments with a newline and a tab", ["a\nb", "tab\there"]);
+start("flags that look like a port", ["--port=1", "-p", "2", "--host", "0.0.0.0"]);
+start("a thousand arguments", Array.from({ length: 1000 }, (_, i) => `a${i}`));
+start("one argument of 100 KB", ["x".repeat(100 * 1024)]);
+start("WTX_NO_NATIVE empty", [], { env: { WTX_NO_NATIVE: "" } });
+start("WTX_NO_NATIVE=0", [], { env: { WTX_NO_NATIVE: "0" } });
+start("input on stdin", [], { stdin: "some input\n" });
+start("FORCE_COLOR=1 through pipes", [], { env: { FORCE_COLOR: "1" } });
+start("NO_COLOR and FORCE_COLOR", [], { env: { NO_COLOR: "1", FORCE_COLOR: "1" } });
+start("NODE_ENV=production", [], { env: { NODE_ENV: "production" } });
+const NO_TTY = { win32: "the runner gives a terminal on Linux and macOS only" };
+start("on a terminal (bun's colours)", [], { tty: true, skip: NO_TTY });
+start("stdout alone a terminal", [], { tty: "stdout", skip: NO_TTY });
+start("on a terminal with NO_COLOR", [], { tty: true, env: { NO_COLOR: "1" }, skip: NO_TTY });
+start("on a terminal with TERM=dumb", [], { tty: true, env: { TERM: "dumb" }, skip: NO_TTY });
+start("TERMINAL_WS_PORT 65536", [], { env: { TERMINAL_WS_PORT: "65536" } });
+start("TERMINAL_WS_PORT in full-width digits", [], { env: { TERMINAL_WS_PORT: "１２３" } });
+start("TERMINAL_WS_PORT 99999e9 (parseInt stops at e)", [], { env: { TERMINAL_WS_PORT: "99999e9" } });
+start("BUN_OPTIONS with a preload", [], { env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: ['echo \'console.error("preloaded " + process.argv.length)\' > "<ROOT>/pre.mjs"'] });
+start("bunfig.toml in the working directory preloads a script", [], { files: { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": 'console.error("bunfig preload");\n' } });
+start("bunfig.toml that is not TOML", [], { files: { "bunfig.toml": "this is [not toml\n" } });
+start("package.json in the working directory that is not JSON", [], { files: { "package.json": "{ not json" } });
+start("tsconfig.json in the working directory that is not JSON", [], { files: { "tsconfig.json": '{ "compilerOptions": ' } });
+start("package.json above the working directory that is not JSON", [], { setup: ['echo "{ nope" > "<ROOT>/package.json"'] });
+start("TERMINAL_WS_PORT from .env", [], { env: { TERMINAL_WS_PORT: null }, files: { ".env": "TERMINAL_WS_PORT=99999\n" } });
+start(".env with CRLF line ends", [], { env: { TERMINAL_WS_PORT: null }, files: { ".env": "TERMINAL_WS_PORT=99999\r\nOTHER=1\r\n" } });
+start(".env.production under NODE_ENV=production", [], { env: { TERMINAL_WS_PORT: null, NODE_ENV: "production" }, files: { ".env.production": "TERMINAL_WS_PORT=99998\n", ".env.development": "TERMINAL_WS_PORT=99997\n" } });
+start(".env with $VAR expansion and quotes", [], { env: { TERMINAL_WS_PORT: null, BASE: "999" }, files: { ".env": 'TERMINAL_WS_PORT="${BASE}99"\n' } });
+start("TERMINAL_WS_HOST from .env, an address this machine lacks", [], { env: { TERMINAL_WS_PORT: null }, files: { ".env": "TERMINAL_WS_HOST=192.0.2.1\n" } });
+const TMPLS = ['ls -A "$TMPDIR" 2>&1; ls -A "$TMPDIR/koho-term-zshrc" 2>&1'];
+start("TMPDIR with a space and non-ASCII", [], { env: { TMPDIR: "<ROOT>/t mp é" }, setup: ['mkdir -p "<ROOT>/t mp é"'], after: ['ls -A "<ROOT>/t mp é/koho-term-zshrc"'], skip: NO_WIN });
+start("TMPDIR that does not exist is made", [], { env: { TMPDIR: "<ROOT>/not/yet" }, after: ['ls -A "<ROOT>/not/yet/koho-term-zshrc"'], skip: NO_WIN });
+start("TMPDIR a symbolic link", [], { env: { TMPDIR: "<ROOT>/tlink" }, setup: ['mkdir -p "<ROOT>/treal" && ln -s "<ROOT>/treal" "<ROOT>/tlink"'], after: ['ls -A "<ROOT>/treal/koho-term-zshrc"'], skip: NO_WIN });
+start("TMPDIR with a trailing slash", [], { after: TMPLS, env: { TMPDIR: "<ROOT>/tslash/" }, setup: ['mkdir -p "<ROOT>/tslash"'], skip: NO_WIN });
+start("HOME unset", [], { env: { HOME: null } });
+start("LANG and LC_ALL of another language", [], { env: { LANG: "tr_TR.UTF-8", LC_ALL: "de_DE.ISO-8859-1" } });
+
+// ── the server, driven ──
+/** The environment a session's program gets, in its own order. It waits a
+ *  moment first (bun-pty sometimes loses what a program writes at once). */
+const RAWENV = ["/bin/sh", "-c", "sleep 0.3; /usr/bin/env; echo END; exec sleep 30"];
+const RAWENV_STEPS = [{ http: "POST /sessions/k", body: { cmd: RAWENV } }, wait("k", "END\r\n"), { http: "GET /sessions/k/buffer" }];
+const vEnv = (name, env, o = {}) => add(`v-env: ${name}`, RAWENV_STEPS, { env, skip: NO_WIN, ...o });
+vEnv("the order of the variables a session gets", { ZZ_LAST: "1", AA_FIRST: "2", MM_MIDDLE: "3", BB: "4" });
+vEnv("names that sort differently by byte and by case", { "é_VAR": "1", a_lower: "2", _UNDER: "3", Z9: "4", "A-B": "5", "1X": "6" });
+vEnv("an empty value and a value with a newline", { EMPTY: "", NL: "line1\nline2", EQ: "a=b=c" });
+vEnv("what bun loads from .env, in order", {}, { files: { ".env": "Z_FROM_FILE=1\nA_FROM_FILE=2\n" } });
+// (The verifier's "WTX_PACKAGE_ROOT in the user's own environment" set it to
+// the package's own directory, which is also how the runner points the binary
+// at the package here: the binary takes such a value for the launcher's. Its
+// installed form is below, v-install, with a directory of the user's own.)
+add("v-http: HEAD and OPTIONS on the routes", [create("k", say("x")), wait("k", "x"), { http: "HEAD /sessions" }, { http: "OPTIONS /sessions" }, { http: "HEAD /sessions/k/buffer" }, { http: "OPTIONS /sessions/k" }, { http: "HEAD /summary?cwd=<CWD>" }]);
+add("v-http: an absolute-form request target", [{ http: "GET http://127.0.0.1:{PORT}/sessions" }, { http: "GET http://elsewhere.test/sessions" }]);
+add("v-http: repeated query parameters", [
+  create("k", say("one\\ntwo\\nthree\\n")),
+  wait("k", "three"),
+  { http: "GET /sessions/k/buffer?tail=1&tail=2" },
+  { http: "GET /sessions/k/buffer?strip=0&strip=1" },
+  { http: "GET /summary?cwd=/nowhere&cwd=<CWD>" },
+]);
+add("v-http: a 100 KB body typed into a session", [
+  create("k", "process.stdin.setRawMode(true); let n = 0; process.stdin.on('data', (d) => { n += d.length; if (n >= 102400) process.stdout.write('got all ' + n + '\\n') }); process.stdout.write('ready\\n')"),
+  wait("k", "ready"),
+  { http: "POST /sessions/k/input", body: "y".repeat(100 * 1024) },
+  wait("k", "got all"),
+  LIST,
+], { timeout: 60 });
+add("v-http: session keys with an emoji, %2F and a plus", [create("%F0%9F%98%80", QUIET), create("a%2Fb", QUIET), create("c+d", QUIET), LIST, { http: "GET /sessions/c+d/buffer" }, { http: "DELETE /sessions/a%2Fb" }, LIST]);
+add("v-http: a JSON body with a BOM, CRLF and a duplicate key", [
+  { http: "POST /sessions/a", bodyHex: Buffer.from('﻿{"cmd":["' + BUN + '","-e","setTimeout(()=>{},30000)"]}').toString("hex") },
+  { http: "POST /sessions/b", body: '{\r\n"cols": 50,\r\n"cols": 60,\r\n"cmd":["' + BUN + '","-e","setTimeout(()=>{},30000)"]\r\n}' },
+  LIST,
+], { shell: true, skip: NO_WIN });
+add("v-http: a command line with non-ASCII and a newline", [
+  { http: "POST /sessions/k", body: { cmd: [BUN, "-e", "process.stdout.write(process.argv.slice(1).join('|') + '.'); setTimeout(() => {}, 30000)", "é 😀", "a\nb"] } },
+  wait("k", "."),
+  { http: "GET /sessions/k/buffer" },
+]);
+add("v-ws: a directory with a space and non-ASCII, percent-encoded", [...attach("?cwd=<CWD>/d%20%C3%A9"), { recv: "a", until: { text: "fake shell" } }, LIST], { shell: true, after: ["ls"], skip: NO_WIN });
+add("v-ws: a trailing slash makes another session", [
+  ...attach(),
+  { recv: "a", until: { text: "fake shell" } },
+  ...attach("?cwd=<CWD>/", "b"),
+  { recv: "b", until: { text: "fake shell" } },
+  LIST,
+], { shell: true, env: { PARITY_DIRS: JSON.stringify(["<CWD>/"]) }, skip: NO_WIN });
+// (The program waits a moment before it prints, unlike the verifier's: what a
+// program writes at once sometimes never reaches wtx, which bun-pty loses.)
+add("v-buffer: output that is not UTF-8", [
+  { http: "POST /sessions/k", body: { cmd: ["/bin/sh", "-c", "sleep 0.3; printf 'a\\377b\\303(c\\342\\202d.\\n'; exec sleep 30"] } },
+  wait("k", "."),
+  { http: "GET /sessions/k/buffer" },
+  { http: "GET /sessions/k/buffer?strip=1" },
+], { skip: NO_WIN });
+add("v-buffer: wide characters on the screen", [create("k", say("日本語のテキスト😀😀😀abc\\n\\u00e9\\u0301x\\n"), { cols: 12, rows: 6 }), wait("k", "x\r\n"), { http: "GET /sessions/k/buffer?strip=1" }, { http: "GET /sessions/k/buffer?tail=2" }]);
+add("v-summary: a trailing slash and an encoded directory", [create("k", say("⏺ Done?§\\n"), { cwd: "<CWD>/x y" }), wait("k", "§"), { http: "GET /summary?cwd=<CWD>/x%20y/" }, { http: "GET /summary?cwd=<CWD>/x+y" }, { http: "GET /summary?cwd=<CWD>/x%20y" }]);
+add("v-status: WTX_REPO_BASE with a trailing slash", [create("k", QUIET, { cwd: "<ROOT>/repos/me/proj" }), { http: "GET /status/me/proj" }, { http: "GET /status/me/proj/" }], { env: { WTX_REPO_BASE: "<ROOT>/repos/" } });
+add("v-start: TERMINAL_WS_PORT 0 listens somewhere", [], { env: { TERMINAL_WS_PORT: "0" } });
+add("v-start: TERMINAL_WS_PORT with a leading zero", [LIST], { env: { TERMINAL_WS_PORT: "0{PORT}" } });
+add("v-start: TERMINAL_WS_HOST localhost", [LIST], { env: { TERMINAL_WS_HOST: "localhost" } });
+add("v-start: TERMINAL_WS_HOST 127.1", [LIST], { env: { TERMINAL_WS_HOST: "127.1" } });
+add("v-start: TERMINAL_WS_HOST ::1", [], { env: { TERMINAL_WS_HOST: "::1" } });
+add("v-access: an empty TERMINAL_ACCESS_KEY from another address", [{ http: "GET /sessions", ...OTHER }, { http: "GET /sessions?key=", ...OTHER }], { env: { TERMINAL_ACCESS_KEY: "" }, skip: NO_SECOND_LOOPBACK });
+
+// ── installed as npm installs it: the first run goes through the launcher ──
+// PARITY_INSTALL (rs/parity/drive.mjs): the TypeScript's side is @snomiao/wtx
+// 0.3.4 as published (bin/wtx is wtx.mjs), the binary's the package that
+// rs/parity/proof.sh packs (bin/wtx is rustify's launcher, under bun); "second
+// run" is after the launcher has put the binary in its place. Where bun has
+// applied something before the launcher (a .env, a bunfig.toml, BUN_OPTIONS),
+// the binary starts nothing on the launcher's run (rs/src/launcher.rs): that
+// differs from wtx.mjs by design and is checked by rs/parity/launcher.mjs, not
+// here. The npm layout here is a POSIX one: not on Windows.
+const NO_WIN_INSTALL = { win32: "npm installs a command shim (.cmd) on Windows, which this layout of symbolic links is not" };
+const installed = (name, steps, o = {}) =>
+  add(`v-install: ${name}`, steps, { ...o, env: { PARITY_INSTALL: "1", ...(o.second ? { PARITY_INSTALL_RUNS: "2" } : {}), ...(o.env || {}) }, skip: NO_WIN_INSTALL });
+const installedStart = (name, o = {}) => installed(name, [], { ...o, env: { ...DEAD, PARITY_DIRECT: "1", ...(o.env || {}) } });
+installedStart("first run, plain");
+installedStart("second run, plain", { second: true });
+installedStart("first run, --version and other words", { args: ["--version", "x"] });
+const BUNFIG_PRELOAD = { "bunfig.toml": 'preload = ["./pre.mjs"]\n', "pre.mjs": 'console.error("bunfig preload ran");\n' };
+installedStart("second run, a bunfig.toml preload in the working directory", { second: true, files: BUNFIG_PRELOAD });
+installedStart("second run, BUN_OPTIONS with a preload", { second: true, env: { BUN_OPTIONS: "--preload <ROOT>/pre.mjs" }, setup: ['echo \'console.error("BUN_OPTIONS preload ran")\' > "<ROOT>/pre.mjs"'] });
+installedStart("second run, NODE_ENV=production set in .env", { second: true, env: { TERMINAL_WS_PORT: null }, files: { ".env": "NODE_ENV=production\nTERMINAL_WS_HOST=192.0.2.1\n", ".env.production": "TERMINAL_WS_PORT=99998\n" } });
+// What bun does not apply on the launcher's run, so the binary hands it back.
+installedStart("first run, NODE_OPTIONS with a preload (bun does not read it)", { env: { NODE_OPTIONS: "--require <ROOT>/pre.cjs" }, setup: ['echo \'console.error("NODE_OPTIONS preload ran")\' > "<ROOT>/pre.cjs"'] });
+installedStart("first run, an .env.example and an .envrc (bun reads neither)", { files: { ".env.example": "TERMINAL_WS_PORT=1\n", ".envrc": "export TERMINAL_WS_PORT=2\n" } });
+installedStart("first run, a package.json here that is not JSON", { files: { "package.json": "{ not json" } });
+installed("first run, the variables of a session", RAWENV_STEPS, { env: { ZZ: "1", AA: "2" } });
+installed("second run, a secret in .env and a session", RAWENV_STEPS, { second: true, files: { ".env": "OPENAI_API_KEY=sk-dummy-from-dotenv\nTERMINAL_ACCESS_KEY=dummy-key-from-dotenv\n" } });
+installed("second run, the user's own WTX_PACKAGE_ROOT reaches a session", RAWENV_STEPS, { second: true, env: { PARITY_WTX_PACKAGE_ROOT: "<ROOT>/mine" } });
 
 // ═══════════════════════════ systems ═══════════════════════════
 

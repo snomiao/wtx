@@ -26,7 +26,15 @@
 #   3. cargo test in rs/: the modules against what the TypeScript answered
 #      (step 1), and the hand-back helper. It builds the crate again from
 #      the same sources and Cargo.lock; it does not run the binary named
-#      above.
+#      above;
+#   4. on Linux and macOS, the npm package with the binary named above, as
+#      rustify's pack.mjs (beside the runner, ../npm/pack.mjs) packs it:
+#      the cases named "v-install" install it as npm would, so that the
+#      first run goes through rustify's launcher (rs/parity/drive.mjs,
+#      PARITY_INSTALL), and rs/parity/launcher.mjs checks the runs that the
+#      binary does not start, where bun has applied a .env or the like before
+#      the launcher (rs/src/launcher.rs). On Windows npm installs a command
+#      shim, which these cases do not build: they are skipped there.
 #
 # There is no run on a terminal (--tty): wtx writes only to its own stdout
 # and stderr, which rs/parity/drive.mjs reads through pipes, and what a
@@ -79,6 +87,24 @@ spelt() {
 logs_for_node=$(spelt "$logs")
 node rs/parity/lanes.mjs rs/parity.json "$lanes" "$logs_for_node" || exit 1
 
+# The package as the pipeline packs it, for the install cases (step 4).
+dist_env=""
+case $platform in
+  win32*) ;;
+  *)
+    key=$(node -p 'process.platform + "-" + process.arch')
+    mkdir -p "$logs/native/$key" && cp "$binary" "$logs/native/$key/wtx" || exit 1
+    pack=$(dirname "$runner")/../npm/pack.mjs
+    if ! node "$pack" pack --package package.json --manifest rs/Cargo.toml --artifacts "$logs/native" --out "$logs/dist" --allow-missing > "$logs/pack.log" 2>&1; then
+      echo "pack: FAILED"
+      cat "$logs/pack.log"
+      rm -rf "$logs"
+      exit 1
+    fi
+    dist_env="PARITY_DIST=$logs"/dist
+    ;;
+esac
+
 start() {
   name=$1
   shift
@@ -97,12 +123,20 @@ run_in() {
   rm -rf "$run_dir"
   return $run_code
 }
+# A command in a temp directory of its own (TMPDIR).
+run_in_dir() {
+  own_dir=$(mktemp -d "${TMPDIR:-/tmp}/wtx-run.XXXXXX") || return 1
+  own_code=0
+  TMPDIR=$own_dir "$@" || own_code=1
+  rm -rf "$own_dir"
+  return $own_code
+}
 lane() {
   lane_cases=$logs_for_node/lane-$1.json
   lane_code=0
-  run_in --cases "$lane_cases" --ts "node rs/parity/drive.mjs bun wtx.mjs" \
-    --rs "env WTX_PACKAGE_ROOT=$root node rs/parity/drive.mjs $binary" || lane_code=1
-  run_in --cases "$lane_cases" --rs "node rs/parity/drive.mjs $binary" --handback WTX_PACKAGE_ROOT=wtx.mjs || lane_code=1
+  run_in --cases "$lane_cases" --ts "env $dist_env node rs/parity/drive.mjs bun wtx.mjs" \
+    --rs "env WTX_PACKAGE_ROOT=$root $dist_env node rs/parity/drive.mjs $binary" || lane_code=1
+  run_in --cases "$lane_cases" --rs "env $dist_env node rs/parity/drive.mjs $binary" --handback WTX_PACKAGE_ROOT=wtx.mjs || lane_code=1
   return $lane_code
 }
 runs=""
@@ -114,6 +148,10 @@ while [ "$n" -lt "$lanes" ]; do
 done
 start unit cargo test --release --locked --manifest-path rs/Cargo.toml
 runs="$runs unit"
+if [ -n "$dist_env" ]; then
+  start launcher run_in_dir node rs/parity/launcher.mjs "$logs/dist"
+  runs="$runs launcher"
+fi
 wait
 
 echo "proof on $platform with bun $(bun --version), $lanes lane(s):$runs"
@@ -137,6 +175,7 @@ for name in $runs; do
       back=$((back + count))
       ;;
     unit) grep '^test result' "$logs/$name.log" | sed "s/^/$name: /" ;;
+    launcher) tail -n 1 "$logs/$name.log" | sed "s/^/$name: /" ;;
   esac
 done
 if [ "$failed" = 0 ]; then
