@@ -919,7 +919,7 @@
    "name": "ws: cols that is not a number ends the server",
    "args": [],
    "env": {
-    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>&cols=abc\"},{\"recv\":\"a\",\"until\":\"close\",\"timeout\":3000}]",
+    "PARITY_STEPS": "[{\"ws\":\"?cwd=<CWD>&cols=abc\"},{\"recv\":\"a\",\"until\":\"close\",\"timeout\":3000},{\"until\":\"end\"}]",
     "SHELL": "<ROOT>/fake-shell"
    },
    "setup": [

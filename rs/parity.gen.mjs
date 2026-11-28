@@ -345,7 +345,12 @@ add("ws: an unknown session", [{ ws: "?session=nope" }, { recv: "a", until: "clo
 add("ws: an empty session name attaches by directory", [...attach("?session=&cwd=<CWD>"), { recv: "a", until: { text: "fake shell" } }], { shell: true, skip: NO_SH });
 add("ws: attach to a named session, whatever its directory", [create("k", say("named\\n")), wait("k", "named\r\n"), ...attach("?session=k&cwd=rel"), { recv: "a", until: { quiet: 300 } }, LIST]);
 add("ws: cols and rows from the query, clamped", [...attach("?cwd=<CWD>&cols=4&rows=1"), { recv: "a", until: { text: "fake shell" } }, { send: "a", text: "size\r" }, { recv: "a", until: { text: "size 2 10" } }, LIST], { shell: true, skip: NO_SH });
-add("ws: cols that is not a number ends the server", [{ ws: "?cwd=<CWD>&cols=abc" }, { recv: "a", until: "close", timeout: 3000 }], { shell: true, skip: NO_SH });
+// The server ends here (exit 1). On one run on macOS the driver saw that end
+// before the last step was done with wtx.mjs, and only after it, while it
+// waited for the server's log to be quiet, with the binary (which there
+// becomes wtx.mjs's bun), and printed another line of how the server ended:
+// the case waits for the end (rs/parity/drive.mjs, {"until": "end"}).
+add("ws: cols that is not a number ends the server", [{ ws: "?cwd=<CWD>&cols=abc" }, { recv: "a", until: "close", timeout: 3000 }, { until: "end" }], { shell: true, skip: NO_SH });
 add("ws: ping with and without t", [
   create("k", QUIET),
   ...attach("?session=k"),

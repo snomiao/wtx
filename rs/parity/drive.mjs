@@ -65,6 +65,12 @@
 //        nothing unless it times out)
 //   {"until": "log", "contains": "...", "timeout": 10000}
 //        waits until the server's stdout contains the text
+//   {"until": "end", "timeout": 10000}
+//        waits until the server has ended by itself (exited and closed its
+//        output), for a case whose steps make it end: without it, whether
+//        this script saw that end before the last step was done or only
+//        after, while it waited for the log to be quiet, depends on timing,
+//        and so does what it prints of how the server ended
 //   {"sleep": 100}
 //   {"busy": true} occupies the port first, before the server starts (as
 //        the first step only), so that the server cannot bind it
@@ -703,6 +709,8 @@ if (listening && !ended) {
       if (!(await until(() => stdoutText().includes(step.contains), step.timeout ?? 10000))) {
         say(`(the server's stdout did not come to contain ${JSON.stringify(step.contains)})`);
       }
+    } else if (step.until === "end") {
+      if (!(await until(() => ended, step.timeout ?? 10000))) say(`(the server did not end within ${step.timeout ?? 10000} ms)`);
     } else if (step.sleep) await pause(step.sleep);
     else say(`(a step this script does not know: ${JSON.stringify(raw)})`);
   }
