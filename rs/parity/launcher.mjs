@@ -104,6 +104,9 @@ if (version < 3) {
 
 const work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wtx-launcher-")));
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// On Windows a process that has just been stopped can hold its directory a
+// moment longer (EPERM, EBUSY): removing is tried again for up to 10 s.
+const remove = (target) => fs.rmSync(target, { recursive: true, force: true, maxRetries: 40, retryDelay: 250 });
 
 // ── the stand-in registry, with the package and its dependencies ────────────
 
@@ -219,7 +222,7 @@ fs.mkdirSync(toolEnv.TMPDIR, { recursive: true });
 
 function finish(code) {
   registry.close();
-  fs.rmSync(work, { recursive: true, force: true });
+  remove(work);
   process.exit(code);
 }
 
@@ -307,10 +310,10 @@ async function serve(start, verbatim, scenario, caseDir) {
   const dump = path.join(caseDir, "session-env.txt");
   // Afresh: the scenario's files, and nothing a run before left.
   for (const dir of [cwd, tmp, sessionDir]) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    remove(dir);
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.rmSync(dump, { force: true });
+  remove(dump);
   for (const [name, text] of Object.entries(scenario.files(caseDir))) fs.writeFileSync(path.join(cwd, name), text);
   const port = await freePort();
   const env = { ...baseEnv(tmp), USER_OWN: "mine", LC_USER_OWN: "mine", TERMINAL_WS_PORT: String(port), TERMINAL_WS_HOST: "127.0.0.1", ...scenario.env(caseDir) };
