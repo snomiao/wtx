@@ -57,13 +57,20 @@ jobs:
       #   three rs/parity/launcher.mjs installs it with bun and with npm from
       #   a stand-in registry (rustify's registry.mjs, no upstream) and
       #   compares the first run and the second with wtx.mjs run directly,
-      #   in 14 scenarios (13 on Windows): .env files, preloads of a
+      #   in 18 scenarios (17 on Windows): .env files, preloads of a
       #   bunfig.toml and of BUN_OPTIONS (one deletes a variable of the
-      #   user's, one sets NODE_ENV), an empty environment, RUSTIFY_NO_LINK=1.
-      #   It fails with a launcher older than v3, which hands the binary
-      #   bun's process.env, .env values and all, and with the first cut of
-      #   v3 (rustify 25ce88e), which did so after such a preload and from an
-      #   empty environment: releases/v1 must have the launcher after it.
+      #   user's, one sets NODE_ENV, one deletes process.versions.bun, one
+      #   puts its own object in process.env's place), an empty environment,
+      #   RUSTIFY_NO_LINK=1; and 3 of them with pnpm where the runner has one
+      #   on PATH (Linux and macOS). It fails with a launcher older than v3,
+      #   which hands the binary bun's process.env, .env values and all, with
+      #   the first cut of v3 (rustify 25ce88e), which did so after such a
+      #   preload and from an empty environment, and with the launcher of
+      #   releases/v1 as it is (a629a0a): after a preload that deletes
+      #   process.versions.bun, or puts in process.env's place an object
+      #   that throws when asked, it passes process.env on too, and under
+      #   pnpm it puts the binary where pnpm's shim runs `bun <file>`. So
+      #   this job stays red until releases/v1 has a launcher without them.
       # `bun install` gives the TypeScript bun-pty and @xterm/headless.
       # Every case starts a server twice and waits on it, and the hand-back
       # check runs them all again: on a Windows 11 machine with 3 lanes the
