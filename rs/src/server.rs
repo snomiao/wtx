@@ -220,10 +220,13 @@ pub const ALLOW_ENV_PREFIXES: &[&str] = &["LC_", "XDG_", "NODE_", "npm_", "NPM_"
 ///
 /// This is what the TypeScript means a session to get. What a session gets
 /// with bun-pty 0.4.8 is more: its native side starts the program with the
-/// server's whole environment and adds these on top, so every variable of
-/// the server reaches it (rs/parity.json, the `env:` cases). A Rust server
-/// must not copy that, and cannot differ from it either: it would have to
-/// hand back a server whose environment holds anything outside this list.
+/// server's real environment, the one the server was started with, and adds
+/// these on top, so every variable of that reaches it (rs/parity.json, the
+/// `env:` cases). What bun read from .env files is not in it: bun keeps that
+/// in `process.env`, so of it only the allowed names reach a session. A Rust
+/// server must not copy the leak, and cannot differ from it either: it would
+/// have to hand back a server whose environment holds anything outside this
+/// list.
 pub fn pty_env(env: &[(String, String)], hostname: &str, zdotdir: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     let mut set = |name: &str, value: String| {
