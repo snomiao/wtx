@@ -618,8 +618,17 @@ const SETS = (name) => `process.env.LC_FROM_PRELOAD_${name} = "allowed";\nproces
 const DROPS = (name) => `delete process.env.DROP_ME;\n${SETS(name)}`;
 /** The same, after deleting process.versions.bun (as a preload may, so that a library takes bun for node). */
 const UNBUN = (name) => `delete process.versions.bun;\n${SETS(name)}`;
-/** The same, after putting in process.env's place an object that throws when asked `name in process.env`. */
-const THROWS = (name) => `const real = process.env;\nprocess.env = new Proxy(real, { has() { throw new Error("no in"); } });\n${SETS(name)}`;
+/** The same, and then putting in process.env's place an object that throws when asked `name in
+ *  process.env`. The variables are set on process.env itself, before: an assignment through such a
+ *  Proxy (it has no set trap) defines the property on it, and so on process.env, and where
+ *  process.env has the name already that is with the value alone, which bun refuses
+ *  (ERR_INVALID_OBJECT_DEFINE_PROPERTY; bun 1.4.0 on Linux, 1.4.4 on macOS, 1.4.5 on Windows, not
+ *  1.4.2 on Windows). On Windows bun has written what the launcher's run of the preload set into the
+ *  environment the hand-back's bun starts with (in capitals: `fold`, below), so with bun 1.4.5 the
+ *  preload threw there, in wtx.mjs's bun, and the server never listened (CI, 2026-11-28; rustify's
+ *  ledger, parity/wtx.toml). This scenario is about the launcher's read, which must not fall back to
+ *  process.env when the object in its place throws, not about such a preload. */
+const THROWS = (name) => `${SETS(name)}const real = process.env;\nprocess.env = new Proxy(real, { has() { throw new Error("no in"); } });\n`;
 /** A preload that says where it ran (the file bun was started with), logs it, and does `body`. */
 const preload = (name, log, body = SETS(name)) =>
   'import fs from "node:fs";\nimport path from "node:path";\n' +
