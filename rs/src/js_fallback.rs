@@ -1,4 +1,5 @@
 //! rustify JS fallback v5 — copy into the crate as `src/js_fallback.rs`.
+//! (wtx: `run` also takes ROOT_ENV out of the JavaScript's environment.)
 //! (v2: waits for the JavaScript on Ctrl+C on Windows. v3: starts the
 //! JavaScript with the runtime its own `#!` line names, and offers a
 //! TypeScript entry to bun only. v4: says so when bun is what is missing.
@@ -115,7 +116,11 @@ pub fn run(entry: &str) -> ! {
     let mut last_error = None;
     for runtime in &candidates {
         let mut command = program(&runtime[0]);
-        command.args(&runtime[1..]).arg(&script).args(&args).env_remove(TRACE_ENV);
+        // wtx: the JavaScript gets the environment it would have had without
+        // the binary. The launcher sets ROOT_ENV for the binary, and wtx
+        // passes its whole environment on to every terminal session, where
+        // the variable would show up.
+        command.args(&runtime[1..]).arg(&script).args(&args).env_remove(TRACE_ENV).env_remove(ROOT_ENV);
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
