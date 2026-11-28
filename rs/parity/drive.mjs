@@ -28,7 +28,7 @@
 // check, whose entry prints one line and exits) skips the steps.
 //
 // What would differ between two runs of the same implementation is
-// replaced before printing: the port by <PORT>; a number of milliseconds
+// replaced before printing: the port by <PORT> (after `:`, `=` or `port `); a number of milliseconds
 // since 1970 that falls within this run by <ms>; a session key made from a
 // directory this script knows (`s_` and 12 hex digits of sha256) by
 // s_<sha256 of DIR>, with DIR the directory, which the runner then writes
@@ -147,7 +147,9 @@ function clean(text) {
   let result = text;
   for (const spelling of bunSpellings) result = result.split(spelling).join("<BUN>");
   result = result.replace(/s_[0-9a-f]{12}/g, (key) => sessionKeys.get(key) ?? key);
-  result = result.split(String(port)).join("<PORT>");
+  // The port where a port is written (`:3004`, `=3004`, `port 3004`), not
+  // the same digits inside other text (bun's error page has an SVG path).
+  result = result.replace(new RegExp(`(?<=[:=]|port )${port}(?![0-9])`, "g"), "<PORT>");
   result = result.replace(/\b1[0-9]{12}\b/g, (digits) => {
     const ms = Number(digits);
     return ms >= started - 1000 && ms <= Date.now() + 1000 ? "<ms>" : digits;
