@@ -40,8 +40,17 @@
 // preload that ran in the launcher (its line says it ran in "wtx", the
 // launcher's file, not in "wtx.mjs") has printed its line and written its
 // log line once more, before anything else. Which of them ran there is
-// printed. A launcher older than v3 fails here at once: it hands the binary
-// bun's process.env, .env values and all.
+// printed. And on Windows, where bun writes what JavaScript sets in
+// process.env into the process's own environment too (in capitals), and
+// every session gets that under wtx.mjs as well: the variables the
+// launcher's preload set reach the binary, since launcher v3 reads that
+// environment, and so the session gets them under that spelling, which
+// Windows takes for the same variable; it is printed when it happens. (Not
+// tried here: such a variable is there before wtx.mjs's bun loads the .env
+// files, so a preload that sets NODE_ENV makes it read .env.<that> on
+// Windows, where wtx.mjs run directly reads .env.development; measured with
+// bun 1.4.2.) A launcher older than v3 fails here at once: it hands the
+// binary bun's process.env, .env values and all.
 //
 // The session's environment is also checked against what wtx.mjs is meant
 // to give it: of the .env files only the names on the allow-list (LC_*,
@@ -52,11 +61,16 @@
 // The package managers and every run get an environment made here, not this
 // script's: PATH and, on Windows, the system's own variables; a home
 // directory of their own (HOME, USERPROFILE, APPDATA, LOCALAPPDATA), and a
-// temp directory of their own. npm is the npm on PATH, or PARITY_NPM_CLI, an
-// npm-cli.js that this script's runtime runs (for a machine without npm);
-// with neither, the npm installs are skipped, and it says so. It prints one
-// line per scenario and, at the end, how many passed, and exits 1 unless all
-// did.
+// temp directory of their own. A session may hold more than that: on
+// Windows, bun-pty adds the variables the user has set for good (the
+// registry's), for wtx.mjs as for the binary. So where a session's
+// environment differs, only the names are printed, and the values of the
+// variables this script sets. npm is the npm on PATH (on Windows the
+// npm-cli.js beside node.exe, since npm.cmd needs a shell), or
+// PARITY_NPM_CLI, an npm-cli.js that this script's runtime runs (for a
+// machine without npm); with neither, the npm installs are skipped, and it
+// says so. It prints one line per scenario and, at the end, how many passed,
+// and exits 1 unless all did.
 
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
@@ -219,9 +233,12 @@ for (const dep of ["bun-pty", "@xterm/headless"]) await publishDir(path.join(REP
 
 // ── the installers ──────────────────────────────────────────────────────────
 
-const npmCli = process.env.PARITY_NPM_CLI;
-const hasNpm = npmCli ? fs.existsSync(npmCli) : spawnSync("npm", ["--version"], { stdio: "ignore", shell: isWindows }).status === 0;
-const npm = (args, options) => (npmCli ? run(process.execPath, [npmCli, ...args], options) : run("npm", args, { ...options, shell: isWindows }));
+// On Windows npm is a batch file, which node starts only through a shell:
+// there it is the npm-cli.js that comes with node, beside node.exe.
+const besideNode = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+const npmCli = process.env.PARITY_NPM_CLI || (isWindows && !process.versions.bun && fs.existsSync(besideNode) ? besideNode : null);
+const hasNpm = npmCli ? fs.existsSync(npmCli) : !isWindows && spawnSync("npm", ["--version"], { stdio: "ignore" }).status === 0;
+const npm = (args, options) => (npmCli ? run(process.execPath, [npmCli, ...args], options) : run("npm", args, options));
 
 /** Installs the package afresh into `dir`: how to start the command, and where the package is. */
 async function install(installer, dir) {
@@ -235,7 +252,7 @@ async function install(installer, dir) {
   if (isWindows) {
     // As a command prompt starts npm's wtx.cmd.
     const cmd = path.join(dir, "wtx.cmd");
-    return { start: [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${cmd}"`]], verbatim: true, pkg: path.join(dir, "node_modules", "@snomiao", "wtx") };
+    return { start: [process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${cmd}"`]], viaCmd: true, pkg: path.join(dir, "node_modules", "@snomiao", "wtx") };
   }
   return { start: [path.join(dir, "bin", "wtx"), []], pkg: path.join(dir, "lib", "node_modules", "@snomiao", "wtx") };
 }
@@ -379,17 +396,22 @@ const preload = (name, log) =>
   'const where = path.basename(process.argv[1] ?? "");\n' +
   `console.error(\`preload ${name} ran in \${where}\`);\n` +
   `fs.appendFileSync(${JSON.stringify(log)}, \`${name} \${where}\\n\`);\n` +
-  `process.env.LC_FROM_PRELOAD_${name} = "allowed";\nprocess.env.SECRET_FROM_PRELOAD_${name} = "secret";\n`;
+  `process.env.LC_FROM_PRELOAD_${name} = "allowed";\nprocess.env.SECRET_FROM_PRELOAD_${name} = "secret-from-preload-${name}";\n`;
 const ENV = {
-  ".env": "TERMINAL_ACCESS_KEY=key-from-dotenv\nOPENAI_API_KEY=sk-secret-from-dotenv\nNODE_ENV=production\nLC_FROM_DOTENV=allowed-from-dotenv\n",
-  ".env.production": "LC_FROM_PRODUCTION=read\nSECRET_FROM_PRODUCTION=secret\nWTX_REPO_BASE=/from/env/production\n",
-  ".env.development": "LC_FROM_DEVELOPMENT=read\nSECRET_FROM_DEVELOPMENT=secret\n",
+  ".env": "TERMINAL_ACCESS_KEY=key-from-dotenv\nPARITY_API_SECRET=secret-from-dotenv\nNODE_ENV=production\nLC_FROM_DOTENV=allowed-from-dotenv\n",
+  ".env.production": "LC_FROM_PRODUCTION=read\nSECRET_FROM_PRODUCTION=secret-from-production\nWTX_REPO_BASE=/from/env/production\n",
+  ".env.development": "LC_FROM_DEVELOPMENT=read\nSECRET_FROM_DEVELOPMENT=secret-from-development\n",
 };
+/** The values of these files that a session must not get. */
+const SECRET_VALUES = ["key-from-dotenv", "secret-from-dotenv", "secret-from-production", "secret-from-development"];
+/** The variables this script sets, in a run, its files and its preloads: the only ones whose values it prints. */
+const OURS = /^(TERMINAL_ACCESS_KEY|PARITY_API_SECRET|NODE_ENV|LC_FROM_\w+|SECRET_FROM_\w+|WTX_REPO_BASE|WTX_PACKAGE_ROOT|USER_OWN|LC_USER_OWN|BUN_OPTIONS|RUSTIFY_NO_LINK|TERMINAL_WS_PORT|TERMINAL_WS_HOST)$/;
 const log = (caseDir) => path.join(caseDir, "cwd", "preloads.log");
 const bunfig = (caseDir) => ({ "bunfig.toml": 'preload = ["./pre-bunfig.mjs"]\n', "pre-bunfig.mjs": preload("bunfig", log(caseDir)) });
 const options = (caseDir) => {
   fs.writeFileSync(path.join(caseDir, "pre-options.mjs"), preload("options", log(caseDir)));
-  return { BUN_OPTIONS: `--preload ${path.join(caseDir, "pre-options.mjs")}` };
+  // bun reads a backslash in BUN_OPTIONS as an escape: C:/… on Windows.
+  return { BUN_OPTIONS: `--preload ${path.join(caseDir, "pre-options.mjs").replaceAll("\\", "/")}` };
 };
 const scenarios = [
   { name: "a .env, .env.production, a bunfig.toml preload and BUN_OPTIONS with a preload", files: (d) => ({ ...ENV, ...bunfig(d) }), env: options },
@@ -398,16 +420,26 @@ const scenarios = [
   { name: "a .env, .env.production and BUN_OPTIONS without a preload", files: () => ENV, env: () => ({ BUN_OPTIONS: "--smol" }) },
 ];
 
-/** What wtx.mjs is meant to give a session, whoever started it. */
-function sessionProblems(envText) {
-  const problems = [];
-  const vars = new Map(
+/** A session's environment, by name. */
+const variables = (envText) =>
+  new Map(
     envText
       .split("\n")
       .filter((line) => line.includes("="))
       .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
   );
-  for (const name of ["TERMINAL_ACCESS_KEY", "OPENAI_API_KEY", "SECRET_FROM_PRODUCTION", "SECRET_FROM_DEVELOPMENT", "SECRET_FROM_PRELOAD_bunfig", "SECRET_FROM_PRELOAD_options", "WTX_REPO_BASE", "WTX_PACKAGE_ROOT"]) {
+
+/** What wtx.mjs is meant to give a session, whoever started it. Only the
+ *  values this script set are named: a session can also hold variables of the
+ *  machine's own (on Windows, bun-pty adds the user's persistent ones). What a
+ *  preload sets in process.env is not held against it: on Windows bun writes
+ *  that into the process's own environment too, which every session gets,
+ *  under wtx.mjs as well (it is printed). */
+function sessionProblems(envText) {
+  const problems = [];
+  const vars = variables(envText);
+  for (const [name, value] of vars) if (SECRET_VALUES.includes(value)) problems.push(`the session got ${name}=${value}`);
+  for (const name of ["PARITY_API_SECRET", "SECRET_FROM_PRODUCTION", "SECRET_FROM_DEVELOPMENT", "WTX_REPO_BASE", "WTX_PACKAGE_ROOT"]) {
     if (vars.has(name)) problems.push(`the session got ${name}`);
   }
   for (const [name, value] of [["LC_FROM_DOTENV", "allowed-from-dotenv"], ["NODE_ENV", "production"], ["LC_FROM_DEVELOPMENT", "read"], ["USER_OWN", "mine"], ["LC_USER_OWN", "mine"]]) {
@@ -437,7 +469,17 @@ function withoutLauncher(seen) {
 function compare(label, expected, got) {
   const problems = [];
   for (const key of Object.keys(expected)) {
-    if (expected[key] !== got[key]) problems.push(`${label}: ${key} differs\n      wtx.mjs: ${JSON.stringify(expected[key])}\n      ${label}: ${JSON.stringify(got[key])}`);
+    if (expected[key] === got[key]) continue;
+    if (key !== "sessionEnv") {
+      problems.push(`${label}: ${key} differs\n      wtx.mjs: ${JSON.stringify(expected[key])}\n      ${label}: ${JSON.stringify(got[key])}`);
+      continue;
+    }
+    // Names, and only the values this script set: the rest may be the machine's own.
+    const [a, b] = [variables(expected[key]), variables(got[key])];
+    const shown = (vars, name) => (!vars.has(name) ? "not set" : OURS.test(name) ? JSON.stringify(vars.get(name)) : "set (value not shown)");
+    const names = [...new Set([...a.keys(), ...b.keys()])].filter((name) => a.get(name) !== b.get(name)).sort();
+    const order = names.length ? "" : " (the same variables, in another order)";
+    problems.push(`${label}: the session's environment differs${order}${names.map((name) => `\n      ${name}: wtx.mjs ${shown(a, name)}, ${label} ${shown(b, name)}`).join("")}`);
   }
   return problems;
 }
@@ -453,21 +495,50 @@ for (const installer of installers) {
     const title = `${installer}: ${scenario.name}`;
     const problems = [];
     let measured = "";
+    const cased = new Set();
     try {
       const installed = await install(installer, path.join(caseDir, "inst"));
-      const direct = await serve(["bun", [path.join(installed.pkg, "wtx.mjs")]], false, scenario, caseDir);
+      // wtx.mjs as the published command starts it; through a command prompt
+      // where npm's wtx.cmd starts the installed command (cmd.exe adds PROMPT
+      // to what its programs get).
+      const script = path.join(installed.pkg, "wtx.mjs");
+      const cmd = process.env.ComSpec || "cmd.exe";
+      const direct = await serve(installed.viaCmd ? [cmd, ["/d", "/s", "/c", `""bun" "${script}""`]] : ["bun", [script]], installed.viaCmd, scenario, caseDir);
+      const reached = [...variables(direct.sessionEnv).keys()].filter((name) => /^SECRET_FROM_PRELOAD_/i.test(name));
       problems.push(...sessionProblems(direct.sessionEnv).map((p) => `wtx.mjs: ${p}`));
       if (direct.preloads !== "(none)" && direct.preloads.split("\n").some((line) => line && !/ wtx\.mjs$/.test(line))) problems.push(`wtx.mjs: a preload ran elsewhere: ${direct.preloads}`);
       for (const run of [1, 2]) {
         const label = run === 1 ? "first run" : scenario.noLink ? "second run (the launcher again)" : "second run (the binary)";
-        const seen = await serve(installed.start, installed.verbatim, scenario, caseDir);
+        const seen = await serve(installed.start, installed.viaCmd, scenario, caseDir);
         const { printed, logged, rest } = withoutLauncher(seen);
-        problems.push(...compare(label, direct, rest));
+        let expected = direct;
+        if (isWindows && printed.length) {
+          // bun on Windows writes what the launcher's preload set in
+          // process.env into the launcher's environment, in capitals, and
+          // launcher v3 passes that on: the binary, and wtx.mjs's bun after
+          // it, start with those variables, and the session gets them under
+          // that spelling. Windows takes the two spellings for one variable.
+          const set = new Set(printed.flatMap((p) => [`LC_FROM_PRELOAD_${p}`, `SECRET_FROM_PRELOAD_${p}`].map((name) => name.toUpperCase())));
+          const fold = (text) =>
+            text
+              .split("\n")
+              .map((line) => {
+                const name = line.slice(0, Math.max(0, line.indexOf("=")));
+                return set.has(name.toUpperCase()) ? name.toUpperCase() + line.slice(name.length) : line;
+              })
+              .join("\n");
+          if (rest.sessionEnv !== direct.sessionEnv && fold(rest.sessionEnv) === fold(direct.sessionEnv)) cased.add(label);
+          expected = { ...direct, sessionEnv: fold(direct.sessionEnv) };
+          rest.sessionEnv = fold(rest.sessionEnv);
+        }
+        problems.push(...compare(label, expected, rest));
         if (printed.join() !== logged.join()) problems.push(`${label}: the launcher's preloads printed ${JSON.stringify(printed)} but logged ${JSON.stringify(logged)}`);
         const throughLauncher = run === 1 || scenario.noLink;
         if (!throughLauncher && printed.length) problems.push(`${label}: a preload ran in the launcher`);
         if (run === 1) measured = printed.length ? `; ran once more, in the launcher: ${printed.join(", ")}` : "; no preload ran in the launcher";
       }
+      if (reached.length) measured += `; what a preload set reached the sessions of wtx.mjs too (${reached.join(", ")})`;
+      if (cased.size) measured += `; the launcher's preload's variables reached the binary, a session gets them in capitals (${[...cased].join(", ")})`;
     } catch (error) {
       problems.push(error.message);
     }
