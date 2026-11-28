@@ -222,7 +222,11 @@ fs.mkdirSync(toolEnv.TMPDIR, { recursive: true });
 
 function finish(code) {
   registry.close();
-  remove(work);
+  try {
+    remove(work);
+  } catch (error) {
+    console.log(`(${work} could not be removed yet: ${error.code}; the run that holds it ends within 30 s)`);
+  }
   process.exit(code);
 }
 
@@ -302,21 +306,21 @@ fs.writeFileSync(
     'fs.renameSync(out + ".part", out);\nsetTimeout(() => {}, 30000);\n',
 );
 
-/** Starts the server with `start` in the scenario's directory, drives it, stops it: what was seen. */
-async function serve(start, verbatim, scenario, caseDir) {
-  const cwd = path.join(caseDir, "cwd");
-  const tmp = path.join(caseDir, "tmp");
-  const sessionDir = path.join(caseDir, "session");
-  const dump = path.join(caseDir, "session-env.txt");
-  // Afresh: the scenario's files, and nothing a run before left.
-  for (const dir of [cwd, tmp, sessionDir]) {
-    remove(dir);
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  remove(dump);
-  for (const [name, text] of Object.entries(scenario.files(caseDir))) fs.writeFileSync(path.join(cwd, name), text);
+let runs = 0;
+
+/** Starts the server with `start` in a directory of its own with the scenario's files, drives it,
+ *  stops it: what was seen, with that directory written <RUN>. (Each run has its own: on Windows
+ *  a directory can stay held a while after the server in it has been stopped.) */
+async function serve(start, verbatim, scenario) {
+  const runDir = path.join(work, `run-${++runs}`);
+  const cwd = path.join(runDir, "cwd");
+  const tmp = path.join(runDir, "tmp");
+  const sessionDir = path.join(runDir, "session");
+  const dump = path.join(runDir, "session-env.txt");
+  for (const dir of [cwd, tmp, sessionDir]) fs.mkdirSync(dir, { recursive: true });
+  for (const [name, text] of Object.entries(scenario.files(runDir))) fs.writeFileSync(path.join(cwd, name), text);
   const port = await freePort();
-  const env = { ...baseEnv(tmp), USER_OWN: "mine", LC_USER_OWN: "mine", TERMINAL_WS_PORT: String(port), TERMINAL_WS_HOST: "127.0.0.1", ...scenario.env(caseDir) };
+  const env = { ...baseEnv(tmp), USER_OWN: "mine", LC_USER_OWN: "mine", TERMINAL_WS_PORT: String(port), TERMINAL_WS_HOST: "127.0.0.1", ...scenario.env(runDir) };
   const server = spawn(start[0], start[1], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true, windowsVerbatimArguments: Boolean(verbatim) });
   const logs = { stdout: [], stderr: [] };
   server.stdout.on("data", (chunk) => logs.stdout.push(chunk));
@@ -385,14 +389,20 @@ async function serve(start, verbatim, scenario, caseDir) {
     await end;
   }
   // What differs from run to run.
-  const plain = (s) => s.replaceAll(String(port), "<PORT>").replace(/"(startedAt|lastActivity)":( ?)("[^"]*"|\d+)/g, '"$1":$2<time>');
+  // The run's directory as written in JSON, as it is, and with forward slashes (BUN_OPTIONS on Windows).
+  const spellings = [JSON.stringify(runDir).slice(1, -1), runDir, runDir.replaceAll("\\", "/")];
+  const plain = (s) =>
+    spellings
+      .reduce((text, spelling) => text.replaceAll(spelling, "<RUN>"), s)
+      .replaceAll(String(port), "<PORT>")
+      .replace(/"(startedAt|lastActivity)":( ?)("[^"]*"|\d+)/g, '"$1":$2<time>');
   return {
     ended: isWindows ? "(stopped by taskkill)" : ended,
     stdout: plain(text("stdout")),
     stderr: plain(text("stderr")),
     http: plain(seen.join("\n")),
     sessionEnv: plain(read(dump)),
-    preloads: read(path.join(cwd, "preloads.log")),
+    preloads: plain(read(path.join(cwd, "preloads.log"))),
     files: listing(cwd),
     tmp: listing(tmp),
   };
@@ -416,12 +426,13 @@ const ENV = {
 const SECRET_VALUES = ["key-from-dotenv", "secret-from-dotenv", "secret-from-production", "secret-from-development"];
 /** The variables this script sets, in a run, its files and its preloads: the only ones whose values it prints. */
 const OURS = /^(TERMINAL_ACCESS_KEY|PARITY_API_SECRET|NODE_ENV|LC_FROM_\w+|SECRET_FROM_\w+|WTX_REPO_BASE|WTX_PACKAGE_ROOT|USER_OWN|LC_USER_OWN|BUN_OPTIONS|RUSTIFY_NO_LINK|TERMINAL_WS_PORT|TERMINAL_WS_HOST)$/;
-const log = (caseDir) => path.join(caseDir, "cwd", "preloads.log");
-const bunfig = (caseDir) => ({ "bunfig.toml": 'preload = ["./pre-bunfig.mjs"]\n', "pre-bunfig.mjs": preload("bunfig", log(caseDir)) });
-const options = (caseDir) => {
-  fs.writeFileSync(path.join(caseDir, "pre-options.mjs"), preload("options", log(caseDir)));
+// Of a run's directory (see serve).
+const log = (runDir) => path.join(runDir, "cwd", "preloads.log");
+const bunfig = (runDir) => ({ "bunfig.toml": 'preload = ["./pre-bunfig.mjs"]\n', "pre-bunfig.mjs": preload("bunfig", log(runDir)) });
+const options = (runDir) => {
+  fs.writeFileSync(path.join(runDir, "pre-options.mjs"), preload("options", log(runDir)));
   // bun reads a backslash in BUN_OPTIONS as an escape: C:/… on Windows.
-  return { BUN_OPTIONS: `--preload ${path.join(caseDir, "pre-options.mjs").replaceAll("\\", "/")}` };
+  return { BUN_OPTIONS: `--preload ${path.join(runDir, "pre-options.mjs").replaceAll("\\", "/")}` };
 };
 const scenarios = [
   { name: "a .env, .env.production, a bunfig.toml preload and BUN_OPTIONS with a preload", files: (d) => ({ ...ENV, ...bunfig(d) }), env: options },
@@ -513,13 +524,13 @@ for (const installer of installers) {
       // to what its programs get).
       const script = path.join(installed.pkg, "wtx.mjs");
       const cmd = process.env.ComSpec || "cmd.exe";
-      const direct = await serve(installed.viaCmd ? [cmd, ["/d", "/s", "/c", `""bun" "${script}""`]] : ["bun", [script]], installed.viaCmd, scenario, caseDir);
+      const direct = await serve(installed.viaCmd ? [cmd, ["/d", "/s", "/c", `""bun" "${script}""`]] : ["bun", [script]], installed.viaCmd, scenario);
       const reached = [...variables(direct.sessionEnv).keys()].filter((name) => /^SECRET_FROM_PRELOAD_/i.test(name));
       problems.push(...sessionProblems(direct.sessionEnv).map((p) => `wtx.mjs: ${p}`));
       if (direct.preloads !== "(none)" && direct.preloads.split("\n").some((line) => line && !/ wtx\.mjs$/.test(line))) problems.push(`wtx.mjs: a preload ran elsewhere: ${direct.preloads}`);
       for (const run of [1, 2]) {
         const label = run === 1 ? "first run" : scenario.noLink ? "second run (the launcher again)" : "second run (the binary)";
-        const seen = await serve(installed.start, installed.viaCmd, scenario, caseDir);
+        const seen = await serve(installed.start, installed.viaCmd, scenario);
         const { printed, logged, rest } = withoutLauncher(seen);
         let expected = direct;
         if (isWindows && printed.length) {
