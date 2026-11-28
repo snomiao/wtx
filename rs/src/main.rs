@@ -6,7 +6,6 @@
 //! still ships, so nothing changes for users.
 
 mod js_fallback;
-mod launcher;
 
 /// The package's JavaScript entry, relative to the package root.
 const JS_ENTRY: &str = "wtx.mjs";
@@ -42,7 +41,9 @@ fn main() {
         //
         //   Some("status") => {
         //       if let Some(text) = js_fallback::attempt(|| status::answer(&args[1..])) {
-        //           // A reader that has gone away (`| head`) is not an error.
+        //           // As console.log under bun: a reader that has gone away
+        //           // (`| head`) is not an error. Output the TypeScript writes
+        //           // with process.stdout.write: see "Printing" in js_fallback.rs.
         //           let _ = std::io::Write::write_all(&mut std::io::stdout(), text.as_bytes());
         //           return;
         //       }
@@ -54,25 +55,13 @@ fn main() {
             _ => {}
         }
     }
-    // The one answer the binary gives itself, whatever the arguments: a run
-    // that the npm launcher started, under bun, which has already applied
-    // this directory's .env files, a bunfig.toml or variables of its own.
-    // Handed back, wtx would pass the .env values on to every terminal
-    // session, and its bun would apply all of it a second time; wtx.mjs
-    // does neither. So nothing is started, and the user is told why and
-    // what to do (rs/src/launcher.rs). It is worked out before anything is
-    // printed, so that a bug in it hands back. WTX_NO_NATIVE=1 hands it back
-    // all the same.
-    if native() {
-        let refusal = js_fallback::attempt(|| {
-            let root = js_fallback::package_root().ok_or(js_fallback::HandBack)?;
-            launcher::check(&root).ok_or(js_fallback::HandBack)
-        });
-        if let Some(message) = refusal {
-            // A closed stderr changes nothing: nothing is started.
-            let _ = std::io::Write::write_all(&mut std::io::stderr(), message.as_bytes());
-            std::process::exit(1);
-        }
-    }
+    // A run that rustify's npm launcher started (the first after an install
+    // or upgrade, and every run where it cannot link) is handed back like
+    // any other. Launcher v3 starts the binary with the environment the
+    // command was started with, not with the launcher's process.env, which
+    // holds the working directory's .env files: so wtx.mjs's bun loads them
+    // itself, as when it is the command, and they stay out of the sessions.
+    // A preload of bunfig.toml or BUN_OPTIONS has already run once in the
+    // launcher, which nothing here can undo (rs/parity/first-run.mjs).
     js_fallback::run(JS_ENTRY)
 }
